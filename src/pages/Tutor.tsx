@@ -403,7 +403,7 @@ const Tutor: React.FC = () => {
         pendingLastGeneratedId = qaId;
         if (followUpParent) setFollowUpParent(null);
       }
-      else { console.error('Tutor failed:', error); message.error('解答失败：' + error.message); }
+      else { console.error('Tutor failed:', error); const errMsg = error.message || '未知错误'; message.error(`解答失败：${errMsg}`); }
     } finally {
       setIsGenerating(false);
       abortRef.current = null;
