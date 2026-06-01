@@ -92,6 +92,25 @@ export interface LearningAssessment {
   feedback: string;
 }
 
+// ============ 学习路径 ============
+
+export interface PathModule {
+  questionBankId: string;
+  moduleId: string;
+  name: string;
+  isEntry?: boolean;
+  estimatedHours?: number;
+}
+
+export interface StructuredLearningPath {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  profileMatchTags: string[];
+  modules: PathModule[];
+}
+
 // ============ 练习中心 ============
 
 export type QuestionType = 'choice' | 'truefalse' | 'short';
