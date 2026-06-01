@@ -6,8 +6,16 @@ import type {
   TagScore,
   PracticeState,
 } from '../types';
-import questionBank from '../data/practiceQuestionBank.json';
+import { questions, learningPlan, tagToChinese } from '../data/pythonQuestionBank';
 import { initialProfile } from '../data/mockData';
+import {
+  appendLearningCycleLog,
+  buildLearningEvaluationReport,
+  syncLearningProfileFromPractice,
+  saveProfileAndNotify,
+  broadcastEvent,
+  SYSTEM_EVENTS,
+} from './learningOrchestrator';
 
 // ==================== Tag → 画像维度映射 ====================
 const TAG_TO_DIMENSION: Record<string, string> = {
@@ -36,8 +44,7 @@ const TAG_TO_DIMENSION: Record<string, string> = {
 // ==================== 存储键名 ====================
 const PRACTICE_STATE_KEY = 'practiceState';
 
-export const learningPlan = questionBank.learningPlan;
-export const questions = questionBank.questions as PracticeQuestion[];
+export { learningPlan, questions, tagToChinese };
 
 // ==================== 客观题判分 ====================
 export function checkAnswer(question: PracticeQuestion, userAnswer: string): boolean {
@@ -158,15 +165,26 @@ export function calculateTagScores(
   const tagMap = new Map<string, { total: number; correct: number }>();
 
   for (const result of results) {
-    if (result.isCorrect === null) continue; // 简答题不参与 Tag 计分（AI判分后可参与）
     const question = allQuestions.find(q => q.id === result.questionId);
     if (!question) continue;
+
+    // 加权正确贡献：客观题二值(0/1)，AI 判分题按 aiScore/100 加权
+    let weightedCorrect: number;
+    if (result.isCorrect === true) {
+      weightedCorrect = 1;
+    } else if (result.isCorrect === false) {
+      weightedCorrect = 0;
+    } else if (result.aiScore !== undefined) {
+      weightedCorrect = result.aiScore / 100;
+    } else {
+      continue; // 未评分的简答题，跳过不参与计分
+    }
 
     for (const tag of question.tags) {
       if (!tagMap.has(tag)) tagMap.set(tag, { total: 0, correct: 0 });
       const entry = tagMap.get(tag)!;
       entry.total++;
-      if (result.isCorrect) entry.correct++;
+      entry.correct += weightedCorrect;
     }
   }
 
@@ -221,9 +239,11 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
     };
   });
 
-  profile.updatedAt = new Date().toISOString();
-  localStorage.setItem('studentProfile', JSON.stringify(profile));
-  return profile;
+  const syncedProfile = syncLearningProfileFromPractice(profile, tagScores);
+  syncedProfile.dimensions = profile.dimensions;
+  syncedProfile.updatedAt = new Date().toISOString();
+  saveProfileAndNotify(syncedProfile);
+  return syncedProfile;
 }
 
 // ==================== 持久化练习状态 ====================
@@ -265,6 +285,7 @@ export function submitAnswer(
   aiScore?: number
 ): PracticeState {
   const state = getOrCreatePracticeState();
+  const previousProfile = localStorage.getItem('studentProfile');
 
   // 更新或添加结果
   const existingIdx = state.results.findIndex(r => r.questionId === questionId);
@@ -289,9 +310,44 @@ export function submitAnswer(
   // 重新计算 Tag 得分
   state.tagScores = calculateTagScores(state.results, questions);
 
+  const updatedProfile = updateProfileByTagScores(state.tagScores);
+  if (updatedProfile?.learningProfile) {
+    const question = questions.find(item => item.id === questionId);
+    const moduleMeta = learningPlan.modules.find(module => module.id === (question?.moduleId ?? ''));
+    if (moduleMeta) {
+      const stage = {
+        stageId: moduleMeta.id,
+        stageName: moduleMeta.name,
+        stageGoal: moduleMeta.description,
+        coreKnowledgePoints: [...moduleMeta.tags],
+        estimatedHours: Math.max(4, moduleMeta.questionCount),
+        unlockCondition: {
+          previousStageMasteryRate: 70,
+        },
+      };
+      const evaluationReport = buildLearningEvaluationReport(
+        updatedProfile.learningProfile,
+        stage,
+        state,
+      );
+
+      state.lastEvaluationReport = evaluationReport;
+      state.cycleLogs = appendLearningCycleLog(state.cycleLogs, {
+        source: '练习',
+        before: {
+          profile: previousProfile ? JSON.parse(previousProfile).learningProfile ?? null : null,
+        },
+        after: {
+          profile: updatedProfile.learningProfile,
+          evaluation: evaluationReport,
+        },
+        notes: evaluationReport.profileUpdateInstructions,
+      });
+    }
+  }
+
   savePracticeState(state);
-  // 通知其他页面（如 Assessment）刷新
-  window.dispatchEvent(new CustomEvent('practiceStateUpdated'));
+  broadcastEvent(SYSTEM_EVENTS.PRACTICE_UPDATED, { state });
   return state;
 }
 

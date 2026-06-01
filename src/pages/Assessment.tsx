@@ -16,6 +16,8 @@ import {
 } from '@ant-design/icons';
 import { mockAssessments, mockLearningPath, learningStats, assessmentSuggestions } from '../data/mockData';
 import { loadPracticeState, learningPlan } from '../services/practiceGrader';
+import { tagToChinese, questions } from '../data/pythonQuestionBank';
+import { SYSTEM_EVENTS } from '../services/learningOrchestrator';
 import type { PracticeState } from '../types';
 
 const { Title, Text } = Typography;
@@ -38,13 +40,14 @@ const Assessment: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    // 监听 storage 变化（跨页面同步）
     const handler = () => loadData();
     window.addEventListener('storage', handler);
-    window.addEventListener('practiceStateUpdated', handler);
+    window.addEventListener(SYSTEM_EVENTS.PRACTICE_UPDATED, handler);
+    window.addEventListener(SYSTEM_EVENTS.PROFILE_UPDATED, handler);
     return () => {
       window.removeEventListener('storage', handler);
-      window.removeEventListener('practiceStateUpdated', handler);
+      window.removeEventListener(SYSTEM_EVENTS.PRACTICE_UPDATED, handler);
+      window.removeEventListener(SYSTEM_EVENTS.PROFILE_UPDATED, handler);
     };
   }, []);
 
@@ -66,7 +69,7 @@ const Assessment: React.FC = () => {
 
   // 从练习数据计算统计
   const completedQuestions = practiceState?.results.length ?? 0;
-  const totalQuestions = 48; // 固定题库总数
+  const totalQuestions = learningPlan.modules.reduce((sum, m) => sum + questions.filter(q => q.moduleId === m.id).length, 0);
   const correctCount = practiceState?.results.filter(r => r.isCorrect).length ?? 0;
   const accuracy = completedQuestions > 0 ? Math.round((correctCount / completedQuestions) * 100) : 0;
   const completedModules = practiceState?.moduleProgress.filter(m => m.completedQuestions === m.totalQuestions).length ?? 0;
@@ -93,13 +96,6 @@ const Assessment: React.FC = () => {
 
   // 计算总体评分
   const overallScore = assessmentItems.reduce((sum, a) => sum + a.score, 0) / (assessmentItems.length || 1);
-
-  // 是否在 Practice 页面已触发过更新（通过自定义事件通知）
-  useEffect(() => {
-    const handleUpdate = () => loadData();
-    window.addEventListener('practiceStateUpdated', handleUpdate);
-    return () => window.removeEventListener('practiceStateUpdated', handleUpdate);
-  }, []);
 
   return (
     <div style={{ padding: 24 }}>
@@ -373,29 +369,5 @@ const Assessment: React.FC = () => {
     </div>
   );
 };
-
-// Tag 中文映射
-function tagToChinese(tag: string): string {
-  const map: Record<string, string> = {
-    syntax: '语法基础',
-    'data-types': '数据类型',
-    operators: '运算符',
-    'control-flow': '流程控制',
-    functions: '函数',
-    modules: '模块',
-    scope: '作用域',
-    OOP: '面向对象',
-    classes: '类与对象',
-    inheritance: '继承',
-    polymorphism: '多态',
-    exceptions: '异常处理',
-    files: '文件操作',
-    decorators: '装饰器',
-    comprehensions: '推导式',
-    errorProne: '易错点',
-    studyHabit: '学习习惯',
-  };
-  return map[tag] || tag;
-}
 
 export default Assessment;

@@ -14,14 +14,45 @@ import {
 } from '@ant-design/icons';
 import { mockLearningPath, mockResources, smartRecommendations } from '../data/mockData';
 import { streamChatCompletion } from '../services/api';
+import { saveCurrentPathStage, inferKnowledgePoints, loadCurrentPathStage } from '../services/learningOrchestrator';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
-import type { LearningPath, LearningNode } from '../types';
+import type { LearningPath, LearningNode, StudentProfile } from '../types';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 
 const PAGE_KEY = 'path';
+
+function loadProfile(): StudentProfile | null {
+  try {
+    const saved = localStorage.getItem('studentProfile');
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
+function buildProfileContext(profile: StudentProfile | null): string {
+  if (!profile || !profile.dimensions?.length) return '';
+  const dimMap: Record<string, string> = {};
+  profile.dimensions.forEach(d => { dimMap[d.key] = d.value; });
+
+  return `【当前学生画像】
+- 知识基础：${dimMap.knowledgeBase || '未知'}
+- 认知风格：${dimMap.cognitiveStyle || '未知'}
+- 学习节奏：${dimMap.learningPace || '未知'}
+- 兴趣方向：${dimMap.interestDirection || '未知'}
+- 学习习惯：${dimMap.studyHabit || '未知'}
+
+请根据以上学生画像，调整学习路径的难度、深度和风格。例如：
+- 知识基础薄弱的同学 → 更多基础内容，节奏放慢
+- 实践型学习者 → 增加动手实践节点
+- 视觉型学习者 → 增加图解、视频类学习资源
+- 有特定兴趣方向 → 优先安排相关主题
+- 学习节奏慢的同学 → 增加复习节点，减少每阶段内容量`;
+}
 
 const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
@@ -40,7 +71,10 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     return mockLearningPath;
   });
   const [activeNode, setActiveNode] = useState<string>(() => cachedState?.activeNode ?? mockLearningPath.currentNodeId);
-  const [isPlanning, setIsPlanning] = useState<boolean>(() => cachedState?.isPlanning ?? false);
+  const [isPlanning, setIsPlanning] = useState<boolean>(() => {
+    // 跨页面切换后 AbortController 已丢失，强制重置为 false
+    return false;
+  });
   const [planningResult, setPlanningResult] = useState<string | null>(() => cachedState?.planningResult ?? null);
   const [currentPlanText, setCurrentPlanText] = useState<string>(() => cachedState?.currentPlanText ?? '');
   const [showSteps, setShowSteps] = useState(false);
@@ -62,10 +96,12 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const messages = [
-        { role: 'system' as const, content: `你是路径规划智能体，专门为学生制定个性化的学习路径。
+      const profileCtx = buildProfileContext(loadProfile());
 
+      const systemPromptContent = `你是路径规划智能体，专门为学生制定个性化的学习路径。
+${profileCtx ? '\n' + profileCtx + '\n' : ''}
 请根据用户输入的学习主题或专业方向，生成一个详细的学习路径规划。
+${profileCtx ? '\n请务必根据以上学生画像调整学习路径的难度、深度和风格。' : ''}
 
 要求：
 1. 按照知识点的依赖关系排序（前置知识必须先学）
@@ -86,7 +122,10 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     },
     ...
   ]
-}` },
+}`;
+
+      const messages = [
+        { role: 'system' as const, content: systemPromptContent },
         { role: 'user' as const, content: `请为"${topic}"生成一个完整的个性化学习路径规划` },
       ];
 
@@ -140,6 +179,17 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
 
         setActiveNode(newNodes[0]?.id || 'node-1');
         setPlanningResult('学习路径规划完成！');
+
+        // 持久化第一阶段，供练习中心使用
+        const firstNode = newNodes[0];
+        if (firstNode) {
+          saveCurrentPathStage({
+            stageName: firstNode.title,
+            stageGoal: firstNode.description,
+            coreKnowledgePoints: inferKnowledgePoints(firstNode.title, firstNode.description),
+          });
+        }
+
         setIsChangingPath(false);
         setShowSteps(false);
         message.success('AI已为您生成个性化学习路径');
@@ -163,9 +213,25 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
   };
 
   const doStartLearning = (nodeId: string) => {
+    // 检查是否有真实的练习数据，计算初始进度
+    let initialProgress = 0;
+    try {
+      const psRaw = localStorage.getItem('practiceState');
+      if (psRaw) {
+        const ps = JSON.parse(psRaw);
+        if (ps.moduleProgress?.length) {
+          const totalQ = ps.moduleProgress.reduce((sum: number, m: { totalQuestions: number }) => sum + m.totalQuestions, 0);
+          const completedQ = ps.moduleProgress.reduce((sum: number, m: { completedQuestions: number }) => sum + m.completedQuestions, 0);
+          if (totalQ > 0) {
+            initialProgress = Math.round((completedQ / totalQ) * 100);
+          }
+        }
+      }
+    } catch {}
+
     const updatedNodes = pathData.nodes.map(node => {
       if (node.id === nodeId) {
-        return { ...node, status: 'in-progress' as const };
+        return { ...node, status: 'in-progress' as const, progress: initialProgress };
       }
       if (node.status === 'in-progress') {
         return { ...node, status: 'locked' as const };
@@ -175,6 +241,16 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     const newPathData = { ...pathData, nodes: updatedNodes, currentNodeId: nodeId };
     setPathData(newPathData);
     setActiveNode(nodeId);
+
+    // 保存当前阶段到本地存储，供练习中心按阶段标签筛选题目
+    const currentNode = pathData.nodes.find(n => n.id === nodeId);
+    const kps = inferKnowledgePoints(currentNode?.title || '', currentNode?.description);
+    saveCurrentPathStage({
+      stageName: currentNode?.title || '',
+      stageGoal: currentNode?.description || '',
+      coreKnowledgePoints: kps,
+    });
+
     saveState({ pathData: newPathData, activeNode: nodeId, isPlanning, planningResult, currentPlanText });
     onNavigate?.('practice');
   };

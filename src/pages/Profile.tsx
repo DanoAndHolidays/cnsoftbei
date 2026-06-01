@@ -5,6 +5,7 @@ import { initialProfile, defaultChatMessages, quizQuestionBank, quizSelectionCou
 import { streamChatCompletion } from '../services/api';
 import type { StudentProfile, ProfileDimension } from '../types';
 import { usePageCache } from '../context/PageCacheContext';
+import { buildLearningProfileSnapshot, saveProfileAndNotify } from '../services/learningOrchestrator';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -65,9 +66,15 @@ const Profile: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [form] = Form.useForm();
 
-  // 缓存状态变化
+  // 缓存状态变化（使用序列化比较避免 selectedQuestions 对象数组导致频繁写入）
+  const prevStateRef = useRef<string>('');
   useEffect(() => {
-    saveState({ profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions });
+    const stateObj = { profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions };
+    const serialized = JSON.stringify(stateObj);
+    if (serialized !== prevStateRef.current) {
+      prevStateRef.current = serialized;
+      saveState(stateObj);
+    }
   }, [profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions, saveState]);
 
   // 自动滚动到底部
@@ -145,8 +152,8 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
         hasAnalysis = true;
 
         // 更新画像维度
-        setProfile(prev => {
-          const updatedDimensions = [...prev.dimensions];
+        const nextProfile: StudentProfile = (() => {
+          const updatedDimensions = [...profile.dimensions];
 
           const dimensionKeys: (keyof typeof analysis)[] = [
             'knowledgeBase', 'cognitiveStyle', 'errorProne',
@@ -173,17 +180,25 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
             }
           });
 
-          return {
-            ...prev,
+          const updatedProfile = {
+            ...profile,
             dimensions: updatedDimensions,
             updatedAt: new Date().toISOString(),
+            learningProfile: buildLearningProfileSnapshot({
+              ...profile,
+              dimensions: updatedDimensions,
+              updatedAt: new Date().toISOString(),
+            }, '对话'),
           };
-        });
+          setProfile(updatedProfile);
+          return updatedProfile;
+        })();
 
-        localStorage.setItem('studentProfile', JSON.stringify(profile));
+        saveProfileAndNotify(nextProfile);
 
       } catch (parseError) {
         console.error('Failed to parse analysis result:', parseError);
+        message.warning('AI 返回格式异常，部分维度可能未更新，请重试描述');
       }
 
       // 生成简短的智能体回复
@@ -335,8 +350,8 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
       'learningPace', 'interestDirection', 'studyHabit',
     ];
 
-    setProfile(prev => {
-      const updatedDimensions = [...prev.dimensions];
+    const nextProfile: StudentProfile = (() => {
+      const updatedDimensions = [...profile.dimensions];
 
       dimensionKeys.forEach((key, index) => {
         if (analysis[key] && updatedDimensions[index]) {
@@ -356,14 +371,21 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
         }
       });
 
-      return {
-        ...prev,
+      const updatedProfile = {
+        ...profile,
         dimensions: updatedDimensions,
         updatedAt: new Date().toISOString(),
+        learningProfile: buildLearningProfileSnapshot({
+          ...profile,
+          dimensions: updatedDimensions,
+          updatedAt: new Date().toISOString(),
+        }, '对话'),
       };
-    });
+      setProfile(updatedProfile);
+      return updatedProfile;
+    })();
 
-    localStorage.setItem('studentProfile', JSON.stringify(profile));
+    localStorage.setItem('studentProfile', JSON.stringify(nextProfile));
     message.success('测试完成！画像已根据您的答题结果更新');
   };
 

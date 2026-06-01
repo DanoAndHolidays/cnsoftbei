@@ -16,7 +16,8 @@ import {
 } from '@ant-design/icons';
 import { streamChatCompletion, chatCompletion } from '../services/api';
 import { defaultTutorHistory, tutorQuickQuestions } from '../data/mockData';
-import type { QAItem, StudentProfile } from '../types';
+import { questions as practiceQuestions } from '../services/practiceGrader';
+import type { QAItem, StudentProfile, PracticeQuestion } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
 
@@ -56,6 +57,54 @@ function buildProfileContext(profile: StudentProfile | null): string {
 - 学习习惯：${dimMap.studyHabit || '未知'}
 
 请根据以上画像调整回答风格和深度。`;
+}
+
+// 中文关键词到题库标签的映射
+const CN_KEYWORD_TO_TAG: Record<string, string> = {
+  '变量': 'data-types', '数据类型': 'data-types', '类型': 'data-types',
+  '函数': 'functions', '方法': 'functions', '参数': 'functions',
+  '类': 'classes', '对象': 'OOP', '面向对象': 'OOP', '继承': 'inheritance', '多态': 'polymorphism',
+  '模块': 'modules', '导入': 'modules', '包': 'modules',
+  '异常': 'exceptions', '错误': 'errorProne', '调试': 'errorProne', 'bug': 'errorProne',
+  '文件': 'files', '读写': 'files', 'IO': 'files',
+  '装饰器': 'decorators',
+  '推导式': 'comprehensions', '列表推导': 'comprehensions', '生成器': 'comprehensions',
+  '语法': 'syntax', '运算符': 'operators', '表达式': 'operators',
+  '循环': 'control-flow', '条件': 'control-flow', '流程': 'control-flow', '分支': 'control-flow',
+  '作用域': 'scope',
+};
+
+function getRecommendedQuestions(userQuestion: string, aiAnswer: string): PracticeQuestion[] {
+  const combinedText = `${userQuestion} ${aiAnswer}`;
+  const terms = combinedText.split(/[\s,，。.、；;：:！!？?()（）""''「」【】\[\]\n]+/).filter(w => w.length > 2);
+
+  // Score from keyword mapping
+  const tagScores = new Map<string, number>();
+  terms.forEach(term => {
+    Object.entries(CN_KEYWORD_TO_TAG).forEach(([keyword, tag]) => {
+      if (term.includes(keyword)) {
+        tagScores.set(tag, (tagScores.get(tag) || 0) + 1);
+      }
+    });
+    // Also check lowercase english terms against tag names
+    const lowerTerm = term.toLowerCase();
+    practiceQuestions.forEach(q => {
+      if (q.tags.some(t => t.toLowerCase() === lowerTerm)) {
+        tagScores.set(lowerTerm, (tagScores.get(lowerTerm) || 0) + 2);
+      }
+    });
+  });
+
+  const scored = practiceQuestions.map(q => {
+    const score = q.tags.reduce((sum, tag) => sum + (tagScores.get(tag) || 0), 0);
+    return { q, score };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(s => s.q);
 }
 
 const Tutor: React.FC = () => {
@@ -559,6 +608,33 @@ const Tutor: React.FC = () => {
                   <MarkdownRenderer content={currentAnswer} />
                   {isGenerating && <span style={{ animation: 'blink 1s infinite', marginLeft: 4 }}>|</span>}
                 </div>
+                {!isGenerating && currentQA && (() => {
+                  const recs = getRecommendedQuestions(currentQA.question, currentAnswer);
+                  if (recs.length === 0) return null;
+                  return (
+                    <div style={{ marginTop: 16 }}>
+                      <Title level={5}>相关练习题推荐</Title>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {recs.map(q => (
+                          <Card
+                            key={q.id}
+                            size="small"
+                            hoverable
+                            onClick={() => { setQuestion(q.question); }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <Space>
+                              <Tag color={q.type === 'choice' ? 'blue' : q.type === 'truefalse' ? 'green' : 'orange'}>
+                                {q.type === 'choice' ? '选择题' : q.type === 'truefalse' ? '判断题' : '简答题'}
+                              </Tag>
+                              <Text>{q.question.length > 60 ? q.question.substring(0, 60) + '...' : q.question}</Text>
+                            </Space>
+                          </Card>
+                        ))}
+                      </Space>
+                    </div>
+                  );
+                })()}
               </div>
               );
             })()}

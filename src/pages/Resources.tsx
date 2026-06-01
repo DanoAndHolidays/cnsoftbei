@@ -12,7 +12,7 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons';
 import { multiAgentScheduler, resourceGenerator, type AgentRole } from '../services/multiAgentFramework';
-import type { ResourceType } from '../types';
+import type { ResourceType, StudentProfile } from '../types';
 import { resourceTypeMeta, resourceAgentDisplay } from '../data/mockData';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
@@ -41,6 +41,35 @@ for (const [key, meta] of Object.entries(resourceTypeMeta)) {
     label: meta.label,
     desc: meta.desc,
   };
+}
+
+// 读取学生画像
+function loadProfile(): StudentProfile | null {
+  try {
+    const saved = localStorage.getItem('studentProfile');
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
+// 构建画像上下文文本
+function buildProfileContext(profile: StudentProfile | null): string {
+  if (!profile || !profile.dimensions?.length) return '';
+  const dimMap: Record<string, string> = {};
+  profile.dimensions.forEach(d => { dimMap[d.key] = d.value; });
+
+  return `\n\n学生画像参考：
+- 姓名：${profile.name}，专业：${profile.major}，年级：${profile.grade}
+- 知识基础水平：${dimMap.knowledgeBase || '未知'}
+- 认知风格：${dimMap.cognitiveStyle || '未知'}
+- 兴趣方向：${dimMap.interestDirection || '未知'}
+- 易错点：${dimMap.errorProne || '未知'}
+- 学习节奏：${dimMap.learningPace || '未知'}
+- 学习习惯：${dimMap.studyHabit || '未知'}
+
+请根据以上画像调整资源内容的难度、深度和呈现方式。`;
 }
 
 // 流式内容卡片组件
@@ -101,7 +130,11 @@ const Resources: React.FC = () => {
   // 流式内容状态
   const [streamingContent, setStreamingContent] = useState<Record<ResourceType, string>>(() => cachedState?.streamingContent ?? {} as Record<ResourceType, string>);
   const [streamingType, setStreamingType] = useState<ResourceType | null>(() => cachedState?.streamingType ?? null);
-  const [isComplete, setIsComplete] = useState(() => cachedState?.isComplete ?? false);
+  const [isComplete, setIsComplete] = useState(() => {
+    const cachedContent = cachedState?.streamingContent ?? {};
+    // 有缓存内容且不在生成中 → 视为已完成
+    return cachedState?.isComplete ?? (Object.keys(cachedContent).length > 0 && !cachedState?.generating);
+  });
 
   const [form] = Form.useForm();
 
@@ -166,10 +199,17 @@ const Resources: React.FC = () => {
       setCurrentStep('初始化多智能体协同框架...');
       await new Promise(resolve => setTimeout(resolve, 800));
 
+      // 读取学生画像并构建增强 prompt
+      const profile = loadProfile();
+      const profileCtx = buildProfileContext(profile);
+      const enhancedLearningNeed = profileCtx
+        ? `主题：${learningNeed}${profileCtx}`
+        : learningNeed;
+
       // 使用流式生成
       await resourceGenerator.generateResources(
         selectedTypes,
-        learningNeed,
+        enhancedLearningNeed,
         (type, step, p) => {
           setProgress(prev => ({ ...prev, [type]: p }));
           setCurrentStep(`${resourceTypeConfig[type].label} - ${step}`);
@@ -422,10 +462,15 @@ const Resources: React.FC = () => {
             </Checkbox.Group>
           </Form.Item>
           <div style={{ background: '#e6f7ff', padding: 12, borderRadius: 8, marginTop: 16 }}>
-            <Text type="secondary">
-              已选择 <Text strong>{selectedTypes.length}</Text> 种资源类型，
-              学习主题：<Text strong>{learningNeed || '未指定'}</Text>
-            </Text>
+            <Space direction="vertical" size={4}>
+              <Text type="secondary">
+                已选择 <Text strong>{selectedTypes.length}</Text> 种资源类型，
+                学习主题：<Text strong>{learningNeed || '未指定'}</Text>
+              </Text>
+              {loadProfile() && (
+                <Tag color="blue" icon={<RobotOutlined />}>已关联画像</Tag>
+              )}
+            </Space>
           </div>
         </Form>
       </Modal>
