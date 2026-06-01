@@ -39,6 +39,16 @@ const TAG_TO_DIMENSION: Record<string, string> = {
   errorProne: 'errorProne',
   // 学习习惯
   studyHabit: 'studyHabit',
+  // 数据库知识
+  '数据库基础': 'knowledgeBase',
+  'SQL基础': 'knowledgeBase',
+  '数据库约束': 'knowledgeBase',
+  '数据库索引': 'knowledgeBase',
+  '数据库事务': 'knowledgeBase',
+  '多表查询': 'knowledgeBase',
+  '数据库设计': 'knowledgeBase',
+  '数据库运维': 'knowledgeBase',
+  '数据库类型': 'knowledgeBase',
 };
 
 // ==================== 存储键名 ====================
@@ -54,6 +64,10 @@ export function checkAnswer(question: PracticeQuestion, userAnswer: string): boo
   if (question.type === 'truefalse') {
     const expected = question.trueFalseAnswer ? 'true' : 'false';
     return userAnswer === expected;
+  }
+  if (question.type === 'fill') {
+    const expected = (question.fillAnswer || '').trim().toLowerCase();
+    return userAnswer.trim().toLowerCase() === expected;
   }
   return false;
 }

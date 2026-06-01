@@ -228,7 +228,7 @@ export interface LearningAssessment {
 
 // ============ 练习中心 ============
 
-export type QuestionType = 'choice' | 'truefalse' | 'short';
+export type QuestionType = 'choice' | 'truefalse' | 'short' | 'fill';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface PracticeQuestion {
@@ -243,6 +243,7 @@ export interface PracticeQuestion {
   correctAnswer?: string;        // 选择题正确答案索引/内容
   trueFalseAnswer?: boolean;     // 判断题答案
   sampleAnswer?: string;          // 简答题参考答案
+  fillAnswer?: string;            // 填空题正确答案
   explanation?: string;           // 解析
 }
 
