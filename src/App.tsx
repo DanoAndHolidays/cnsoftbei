@@ -43,7 +43,7 @@ function App() {
       case 'resources':
         return <Resources />;
       case 'path':
-        return <Path />;
+        return <Path onNavigate={setSelectedKey} />;
       case 'tutor':
         return <Tutor />;
       case 'assessment':
