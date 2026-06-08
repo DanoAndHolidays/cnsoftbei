@@ -20,6 +20,16 @@ import { questions as practiceQuestions } from '../services/practiceGrader';
 import type { QAItem, StudentProfile, PracticeQuestion } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
+import {
+  loadProfile,
+  buildProfileContext,
+  buildTutorSystemPrompt,
+  buildFollowUpSystemPrompt,
+  buildFollowUpUserPrompt,
+  buildRegenerateSystemPrompt,
+  buildRegenerateUserPrompt,
+  buildRelevanceCheckPrompt,
+} from '../services/promptBuilder';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -32,32 +42,6 @@ let pendingHistory: QAItem[] | null = null;
 let pendingLastGeneratedId: string | null = null;
 let pendingQuickCache: Record<string, string> | null = null;
 
-function loadProfile(): StudentProfile | null {
-  try {
-    const saved = localStorage.getItem('studentProfile');
-    if (!saved) return null;
-    return JSON.parse(saved);
-  } catch {
-    return null;
-  }
-}
-
-function buildProfileContext(profile: StudentProfile | null): string {
-  if (!profile || !profile.dimensions?.length) return '';
-  const dimMap: Record<string, string> = {};
-  profile.dimensions.forEach(d => { dimMap[d.key] = d.value; });
-
-  return `\n\n【当前学生画像】
-- 姓名：${profile.name}，专业：${profile.major}，年级：${profile.grade}
-- 知识基础：${dimMap.knowledgeBase || '未知'}
-- 认知风格：${dimMap.cognitiveStyle || '未知'}
-- 易错点：${dimMap.errorProne || '未知'}
-- 学习节奏：${dimMap.learningPace || '未知'}
-- 兴趣方向：${dimMap.interestDirection || '未知'}
-- 学习习惯：${dimMap.studyHabit || '未知'}
-
-请根据以上画像调整回答风格和深度。`;
-}
 
 // 中文关键词到题库标签的映射
 const CN_KEYWORD_TO_TAG: Record<string, string> = {
@@ -177,7 +161,7 @@ const Tutor: React.FC = () => {
       const messages = [
         {
           role: 'system' as const,
-          content: '你是一个问题相关性判断助手。判断用户的新问题是否与之前讨论的主题相关。仅回复"相关"或"无关"，不要输出其他任何内容。',
+          content: buildRelevanceCheckPrompt(),
         },
         {
           role: 'user' as const,
@@ -240,19 +224,11 @@ const Tutor: React.FC = () => {
           const messages = [
             {
               role: 'system' as const,
-              content: `你是一位专业的AI辅导老师。用户对之前的回答点了"踩"，现在重新提问同一问题。${profileCtx}
-1. 简要分析旧回答为什么让用户不满意
-2. 给出全新的、明显不同的高质量回答
-
-请严格按以下格式输出（用markdown）：
-## 📊 原因分析
-（2-3句话分析旧回答不足）
-## ✅ 重新解答
-（全新的回答）`,
+              content: buildRegenerateSystemPrompt(profile),
             },
             {
               role: 'user' as const,
-              content: `原始问题：${existing.question}\n\n之前的回答（用户不满意）：${oldAnswer.substring(0, 1500)}\n\n请分析原因并重新解答。`,
+              content: buildRegenerateUserPrompt(existing.question, existing.answer),
             },
           ];
 
@@ -344,25 +320,13 @@ const Tutor: React.FC = () => {
 
     let fullAnswer = '';
     try {
-      const modePrompts: Record<string, string> = {
-        text: '你是一位专业的AI辅导老师，请详细解答用户的问题。用清晰的结构回答，包含必要的解释和示例。',
-        image: '你是一位专业的AI辅导老师，请解答用户的问题并生成可视化图解说明。尽量用ASCII图或结构化方式来展示概念。',
-        video: '你是一位专业的AI辅导老师，请为用户提供视频讲解脚本。内容包括开场、讲解步骤、总结，每部分时间控制在1分钟内。',
-        code: '你是一位专业的编程老师，请为用户提供完整的代码示例。代码要包含注释和运行说明。',
-      };
+      const systemPrompt = isFollowUp && contextParent
+        ? buildFollowUpSystemPrompt(profile)
+        : buildTutorSystemPrompt(activeMode, profile);
 
-      let systemPrompt = modePrompts[activeMode] || modePrompts.text;
-      systemPrompt += profileCtx;
-
-      let userContent = q;
-      if (isFollowUp && contextParent) {
-        systemPrompt += `\n\n用户可能正在基于之前的回答进行追问或提出新问题。请根据上下文判断：
-- 如果新问题与之前的问答主题相关 → 将其视为追问，结合上下文给出连贯深入的回复
-- 如果新问题与之前的问答完全无关 → 将其视为全新问题，忽略之前的上下文
-
-注意：不要显式输出你的判断过程，直接给出最合适的回答。`;
-        userContent = `之前的问答：\n问：${contextParent.question}\n答：${contextParent.answer.substring(0, 2000)}\n\n用户的新输入：${q}`;
-      }
+      const userContent = isFollowUp && contextParent
+        ? buildFollowUpUserPrompt(contextParent, q)
+        : q;
 
       const messages = [
         { role: 'system' as const, content: systemPrompt },

@@ -5,7 +5,15 @@
       "Read(//g/GSave/Grogramming/React/**)",
       "Bash(npm create:*)",
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(node -e \"const d = require\\('./src/data/mockData.json'\\); console.log\\(JSON.stringify\\(d.initialProfile, null, 2\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(npx playwright *)",
+      "Read(//d/GitHub laqudaima/**)",
+      "Read(//d//**)",
+      "Bash(npx tsx *)"
     ]
   }
 }
