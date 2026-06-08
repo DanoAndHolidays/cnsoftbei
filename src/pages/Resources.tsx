@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Typography, Tag, Space, Button, Row, Col, Avatar, Spin, Progress, Modal, Form, Input, Checkbox, message, Alert } from 'antd';
 import {
   FileTextOutlined,
@@ -10,12 +10,14 @@ import {
   RobotOutlined,
   CheckCircleOutlined,
   LoadingOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { multiAgentScheduler, resourceGenerator, type AgentRole } from '../services/multiAgentFramework';
 import type { ResourceType, StudentProfile } from '../types';
 import { resourceTypeMeta, resourceAgentDisplay } from '../data/mockData';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
+import { userKey } from '../services/storage';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -46,7 +48,7 @@ for (const [key, meta] of Object.entries(resourceTypeMeta)) {
 // 读取学生画像
 function loadProfile(): StudentProfile | null {
   try {
-    const saved = localStorage.getItem('studentProfile');
+    const saved = localStorage.getItem(userKey('studentProfile'));
     if (!saved) return null;
     return JSON.parse(saved);
   } catch {
@@ -120,6 +122,15 @@ const Resources: React.FC = () => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
   const [generating, setGenerating] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setGenerating(false);
+    setStreamingType(null);
+    message.info('已取消生成');
+  };
   const [progress, setProgress] = useState<Record<ResourceType, number>>(() => cachedState?.progress ?? {} as Record<ResourceType, number>);
   const [currentStep, setCurrentStep] = useState(() => cachedState?.currentStep ?? '');
   const [isModalOpen, setIsModalOpen] = useState(() => cachedState?.isModalOpen ?? false);
@@ -189,6 +200,9 @@ const Resources: React.FC = () => {
 
     setIsModalOpen(false);
     setGenerating(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
     setProgress({} as Record<ResourceType, number>);
     setError(null);
     setStreamingContent({} as Record<ResourceType, string>);
@@ -215,13 +229,13 @@ const Resources: React.FC = () => {
           setCurrentStep(`${resourceTypeConfig[type].label} - ${step}`);
         },
         (type, delta) => {
-          // 流式更新内容
           setStreamingType(type);
           setStreamingContent(prev => ({
             ...prev,
             [type]: (prev[type] || '') + delta,
           }));
-        }
+        },
+        controller.signal
       );
 
       setIsComplete(true);
@@ -301,11 +315,9 @@ const Resources: React.FC = () => {
           </Space>
         }
         extra={
-          !generating && (
-            <Button type="primary" icon={<ThunderboltOutlined />} onClick={handleOpenModal}>
-              生成资源
-            </Button>
-          )
+          generating
+            ? <Button danger icon={<CloseCircleOutlined />} onClick={handleCancel}>取消生成</Button>
+            : <Button type="primary" icon={<ThunderboltOutlined />} onClick={handleOpenModal}>生成资源</Button>
         }
         style={{ marginTop: 24 }}
       >

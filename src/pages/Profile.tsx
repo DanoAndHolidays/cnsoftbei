@@ -7,6 +7,8 @@ import type { StudentProfile, ProfileDimension } from '../types';
 import { usePageCache } from '../context/PageCacheContext';
 import { buildLearningProfileSnapshot, saveProfileAndNotify } from '../services/learningOrchestrator';
 import { buildProfileAnalysisPrompt, buildProfileReplyPrompt, buildQuizAnalysisPrompt } from '../services/promptBuilder';
+import { userKey } from '../services/storage';
+import { useAuth } from '../context/AuthContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -49,8 +51,23 @@ function selectQuizQuestions(): QuizQuestion[] {
 
 const Profile: React.FC = () => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
+  const { currentUser } = useAuth();
 
-  const [profile, setProfile] = useState<StudentProfile>(() => cachedState?.profile ?? initialProfile);
+  // 加载画像：localStorage > 缓存 > 当前用户信息兜底
+  const loadInitialProfile = (): StudentProfile => {
+    try {
+      const saved = localStorage.getItem(userKey('studentProfile'));
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    if (cachedState?.profile) return cachedState.profile;
+    return {
+      ...initialProfile,
+      id: currentUser?.id || initialProfile.id,
+      name: currentUser?.name || initialProfile.name,
+    };
+  };
+
+  const [profile, setProfile] = useState<StudentProfile>(loadInitialProfile);
   const [isModalOpen, setIsModalOpen] = useState(() => cachedState?.isModalOpen ?? false);
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string; isStreaming?: boolean }[]>(() => cachedState?.chatMessages ?? defaultChatMessages);
   const [inputValue, setInputValue] = useState(() => cachedState?.inputValue ?? '');
@@ -340,7 +357,7 @@ const Profile: React.FC = () => {
       return updatedProfile;
     })();
 
-    localStorage.setItem('studentProfile', JSON.stringify(nextProfile));
+    localStorage.setItem(userKey('studentProfile'), JSON.stringify(nextProfile));
     message.success('测试完成！画像已根据您的答题结果更新');
   };
 
@@ -437,7 +454,7 @@ const Profile: React.FC = () => {
   };
 
   const loadSavedProfile = () => {
-    const saved = localStorage.getItem('studentProfile');
+    const saved = localStorage.getItem(userKey('studentProfile'));
     if (saved) {
       try {
         const parsed = JSON.parse(saved);

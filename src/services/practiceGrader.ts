@@ -52,7 +52,7 @@ const TAG_TO_DIMENSION: Record<string, string> = {
 };
 
 // ==================== 存储键名 ====================
-const PRACTICE_STATE_KEY = 'practiceState';
+import { userKey } from './storage';
 
 export { learningPlan, questions, tagToChinese };
 
@@ -214,7 +214,7 @@ export function calculateTagScores(
 export function updateProfileByTagScores(tagScores: TagScore[]) {
   if (tagScores.length === 0) return;
 
-  const savedProfile = localStorage.getItem('studentProfile');
+  const savedProfile = localStorage.getItem(userKey('studentProfile'));
   let profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
 
   // 按 Tag 维度分组
@@ -262,7 +262,7 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
 
 // ==================== 持久化练习状态 ====================
 export function loadPracticeState(): PracticeState | null {
-  const saved = localStorage.getItem(PRACTICE_STATE_KEY);
+  const saved = localStorage.getItem(userKey('practiceState'));
   if (!saved) return null;
   try {
     return JSON.parse(saved);
@@ -273,7 +273,7 @@ export function loadPracticeState(): PracticeState | null {
 
 export function savePracticeState(state: PracticeState): void {
   state.updatedAt = new Date().toISOString();
-  localStorage.setItem(PRACTICE_STATE_KEY, JSON.stringify(state));
+  localStorage.setItem(userKey('practiceState'), JSON.stringify(state));
 }
 
 export function getOrCreatePracticeState(): PracticeState {
@@ -299,7 +299,7 @@ export function submitAnswer(
   aiScore?: number
 ): PracticeState {
   const state = getOrCreatePracticeState();
-  const previousProfile = localStorage.getItem('studentProfile');
+  const previousProfile = localStorage.getItem(userKey('studentProfile'));
 
   // 更新或添加结果
   const existingIdx = state.results.findIndex(r => r.questionId === questionId);

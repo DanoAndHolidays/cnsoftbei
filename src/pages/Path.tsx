@@ -18,6 +18,7 @@ import { saveCurrentPathStage, inferKnowledgePoints, loadCurrentPathStage } from
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
 import type { LearningPath, LearningNode, StudentProfile } from '../types';
+import { userKey } from '../services/storage';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -26,7 +27,7 @@ const PAGE_KEY = 'path';
 
 function loadProfile(): StudentProfile | null {
   try {
-    const saved = localStorage.getItem('studentProfile');
+    const saved = localStorage.getItem(userKey('studentProfile'));
     if (!saved) return null;
     return JSON.parse(saved);
   } catch {
@@ -216,7 +217,7 @@ ${profileCtx ? '\n请务必根据以上学生画像调整学习路径的难度�
     // 检查是否有真实的练习数据，计算初始进度
     let initialProgress = 0;
     try {
-      const psRaw = localStorage.getItem('practiceState');
+      const psRaw = localStorage.getItem(userKey('practiceState'));
       if (psRaw) {
         const ps = JSON.parse(psRaw);
         if (ps.moduleProgress?.length) {

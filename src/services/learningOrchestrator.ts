@@ -494,10 +494,7 @@ export interface SystemSnapshot {
   loadedAt: string;
 }
 
-const STORAGE_KEY_PROFILE = 'studentProfile';
-const STORAGE_KEY_PRACTICE = 'practiceState';
-const STORAGE_KEY_PATH_PLAN = 'learningPathPlan';
-const STORAGE_KEY_CURRENT_STAGE = 'currentPathStage';
+import { userKey } from './storage';
 
 // ==================== 路径阶段持久化 ====================
 
@@ -511,13 +508,13 @@ export interface CurrentPathStage {
 /** 保存当前学习路径阶段（由 Path 页面调用） */
 export function saveCurrentPathStage(stage: Omit<CurrentPathStage, 'updatedAt'>): void {
   const data: CurrentPathStage = { ...stage, updatedAt: new Date().toISOString() };
-  localStorage.setItem(STORAGE_KEY_CURRENT_STAGE, JSON.stringify(data));
+  localStorage.setItem(userKey('currentPathStage'), JSON.stringify(data));
 }
 
 /** 读取当前学习路径阶段 */
 export function loadCurrentPathStage(): CurrentPathStage | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_CURRENT_STAGE);
+    const raw = localStorage.getItem(userKey('currentPathStage'));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -527,14 +524,14 @@ export function loadCurrentPathStage(): CurrentPathStage | null {
 /** 保存学习路径计划 */
 export function savePathPlan(plan: LearningPathPlan): void {
   plan.updatedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY_PATH_PLAN, JSON.stringify(plan));
+  localStorage.setItem(userKey('learningPathPlan'), JSON.stringify(plan));
   broadcastEvent(SYSTEM_EVENTS.PATH_UPDATED, { plan });
 }
 
 /** 读取学习路径计划 */
 export function loadPathPlan(): LearningPathPlan | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PATH_PLAN);
+    const raw = localStorage.getItem(userKey('learningPathPlan'));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -572,12 +569,12 @@ export function getSystemSnapshot(): SystemSnapshot {
   let practiceState: PracticeState | null = null;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PROFILE);
+    const raw = localStorage.getItem(userKey('studentProfile'));
     if (raw) profile = JSON.parse(raw);
   } catch {}
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PRACTICE);
+    const raw = localStorage.getItem(userKey('practiceState'));
     if (raw) practiceState = JSON.parse(raw);
   } catch {}
 
@@ -609,14 +606,14 @@ export function broadcastEvent(eventName: string, detail?: any) {
 /** 保存画像并通知其他页面 */
 export function saveProfileAndNotify(profile: StudentProfile) {
   profile.updatedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+  localStorage.setItem(userKey('studentProfile'), JSON.stringify(profile));
   broadcastEvent(SYSTEM_EVENTS.PROFILE_UPDATED, { profile });
 }
 
 /** 从 localStorage 读取画像（各页面统一入口） */
 export function loadProfileFromStorage(): StudentProfile | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PROFILE);
+    const raw = localStorage.getItem(userKey('studentProfile'));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

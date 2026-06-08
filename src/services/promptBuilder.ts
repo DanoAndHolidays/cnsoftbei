@@ -6,13 +6,14 @@
  */
 
 import type { StudentProfile, QAItem } from '../types';
+import { userKey } from './storage';
 
 // ==================== 画像加载 ====================
 
 /** 从 localStorage 加载学生画像 */
 export function loadProfile(): StudentProfile | null {
   try {
-    const saved = localStorage.getItem('studentProfile');
+    const saved = localStorage.getItem(userKey('studentProfile'));
     if (!saved) return null;
     return JSON.parse(saved);
   } catch {
