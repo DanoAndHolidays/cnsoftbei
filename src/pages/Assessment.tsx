@@ -114,7 +114,7 @@ const Assessment: React.FC = () => {
         // 将高/中/低转换为分数
         dimScores[d.key] = d.level === '高' ? 90 : d.level === '中' ? 70 : 50;
       });
-      profile.dimensions.forEach((d, idx) => {
+      profile.dimensions.forEach((d) => {
         radarItems.push({
           dimension: d.label,
           score: dimScores[d.key] || 60,
@@ -144,7 +144,7 @@ const Assessment: React.FC = () => {
     // 如果都没有数据，返回默认维度
     if (radarItems.length === 0) {
       const defaultDims = ['知识基础', '认知风格', '学习效率', '易错点', '学习节奏', '兴趣方向'];
-      defaultDims.forEach((dim, idx) => {
+      defaultDims.forEach((dim) => {
         radarItems.push({ dimension: dim, score: 60, fullMark: 100 });
       });
     }

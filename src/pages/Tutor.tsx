@@ -19,6 +19,7 @@ import { defaultTutorHistory, tutorQuickQuestions } from '../data/mockData';
 import type { QAItem, StudentProfile } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
+import { searchResources } from '../services/resourceStorage';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -304,6 +305,14 @@ const Tutor: React.FC = () => {
 
       let systemPrompt = modePrompts[activeMode] || modePrompts.text;
       systemPrompt += profileCtx;
+
+      // 添加相关已生成资源的上下文
+      const relatedResources = searchResources(q.substring(0, 50));
+      if (relatedResources.length > 0) {
+        systemPrompt += '\n\n【相关已生成资源】\n' + relatedResources.slice(0, 2).map(r =>
+          `- [${r.type}] ${r.topic}: ${r.content.substring(0, 300)}...`
+        ).join('\n') + '\n\n参考以上资源内容进行回答。';
+      }
 
       let userContent = q;
       if (isFollowUp && contextParent) {

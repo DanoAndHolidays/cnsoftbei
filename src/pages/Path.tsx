@@ -10,15 +10,15 @@ import {
   ReloadOutlined,
   CloseOutlined,
   LockOutlined,
-  EyeOutlined,
 } from '@ant-design/icons';
 import { mockLearningPath, mockResources, smartRecommendations } from '../data/mockData';
 import { streamChatCompletion } from '../services/api';
+import { getAllGeneratedResources, type GeneratedResource } from '../services/resourceStorage';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
 import type { LearningPath, LearningNode } from '../types';
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
 
 const PAGE_KEY = 'path'
 
@@ -48,6 +48,16 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
 
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // 已生成资源状态
+  const [generatedResources, setGeneratedResources] = useState<GeneratedResource[]>(() => getAllGeneratedResources());
+
+  // 监听资源更新事件
+  useEffect(() => {
+    const handler = () => setGeneratedResources(getAllGeneratedResources());
+    window.addEventListener('generatedResourcesUpdated', handler);
+    return () => window.removeEventListener('generatedResourcesUpdated', handler);
+  }, []);
 
   // 缓存状态变化
   useEffect(() => {
@@ -176,19 +186,6 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     setActiveNode(nodeId);
     saveState({ pathData: newPathData, activeNode: nodeId, isPlanning, planningResult, currentPlanText });
     onNavigate?.('practice');
-  };
-
-  const handleStartLearning = (nodeId: string) => {
-    const node = pathData.nodes.find(n => n.id === nodeId);
-    if (!node) return;
-
-    if (node.status === 'in-progress') {
-      onNavigate?.('practice');
-    } else if (node.status === 'completed') {
-      onNavigate?.('practice');
-    } else {
-      setSkipModalNode({ id: nodeId, title: node.title });
-    }
   };
 
   const handleSkipConfirm = () => {
@@ -494,17 +491,17 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
           基于您的学习进度和画像，系统为您智能推送以下资源
         </Text>
         <Row gutter={16}>
-          {mockResources.slice(0, 4).map(resource => (
-            <Col span={6} key={resource.id}>
+          {(generatedResources.length > 0 ? generatedResources.slice(0, 4) : mockResources.slice(0, 4)).map((resource, idx) => (
+            <Col span={6} key={resource.id || idx}>
               <Card size="small" hoverable>
                 <Card.Meta
                   avatar={
-                    <Avatar shape="square" style={{ background: '#1890ff' }}>
-                      {resource.type[0].toUpperCase()}
+                    <Avatar shape="square" style={{ background: '#722ed1' }}>
+                      {(resource as any).type?.[0]?.toUpperCase() || 'R'}
                     </Avatar>
                   }
-                  title={<Text style={{ fontSize: 12 }}>{resource.title}</Text>}
-                  description={<Tag color="blue">精准推送</Tag>}
+                  title={<Text style={{ fontSize: 12 }} ellipsis={{ tooltip: false }}>{(resource as any).topic || (resource as any).title}</Text>}
+                  description={<Tag color="purple">{generatedResources.length > 0 ? '已生成' : '推荐'}</Tag>}
                 />
               </Card>
             </Col>
