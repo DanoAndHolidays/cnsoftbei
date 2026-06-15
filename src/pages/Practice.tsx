@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card, Typography, Tag, Space, Button, Row, Col, Progress, Radio,
   Input, Spin, message, Avatar, Divider, Collapse,
@@ -8,6 +8,7 @@ import {
   CloseCircleOutlined,
   RocketOutlined,
   ReloadOutlined,
+  AimOutlined,
 } from '@ant-design/icons';
 import type { PracticeQuestion, ModuleProgress } from '../types';
 import {
@@ -18,7 +19,10 @@ import {
   submitAnswer,
   getOrCreatePracticeState,
   resetPracticeState,
+  setActiveBank,
+  getBank,
 } from '../services/practiceGrader';
+import { loadActiveStructuredPath, clearActiveStructuredPath } from '../services/activePathStorage';
 import { usePageCache } from '../context/PageCacheContext';
 
 const { Title, Text, Paragraph } = Typography;
@@ -36,12 +40,18 @@ interface QuestionResult {
   isSubmitted: boolean;
 }
 
-const Practice: React.FC = () => {
+const Practice: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
-  const [activeModuleId, setActiveModuleId] = useState<string>(() =>
-    cachedState?.activeModuleId ?? learningPlan.modules[0].id
-  );
+  const [activeModuleId, setActiveModuleId] = useState<string>(() => {
+    const saved = loadActiveStructuredPath();
+    if (saved) {
+      const firstIncomplete = saved.nodes.find(n => n.status !== 'completed' && n.valid);
+      if (firstIncomplete) return firstIncomplete.moduleId;
+      if (saved.nodes[0]?.valid) return saved.nodes[0].moduleId;
+    }
+    return cachedState?.activeModuleId ?? learningPlan.modules[0].id;
+  });
 
   const [batchIndex, setBatchIndex] = useState<number>(() => cachedState?.batchIndex ?? 0);
 
@@ -63,9 +73,46 @@ const Practice: React.FC = () => {
     return state.moduleProgress;
   });
 
+  // 加载活跃路径
+  const [activeStructuredPath, setActiveStructuredPath] = useState(() => loadActiveStructuredPath());
+
   useEffect(() => {
     saveState({ activeModuleId, batchIndex, results });
   }, [activeModuleId, batchIndex, results, saveState]);
+
+  // 当活跃路径变化时，同步 activeBank 为路径第一个节点对应的题库
+  useEffect(() => {
+    if (activeStructuredPath && activeStructuredPath.nodes.length > 0) {
+      const firstNode = activeStructuredPath.nodes[0];
+      if (firstNode.valid) {
+        setActiveBank(firstNode.questionBankId);
+      }
+    }
+  }, [activeStructuredPath]);
+
+  // 活跃路径包含的模块（按 questionBankId 分组）
+  const pathModuleGroups = useMemo(() => {
+    if (!activeStructuredPath) return null;
+    const groups = new Map<string, { bankId: string; bankName: string; entries: { moduleId: string; moduleName: string; order: number; status: string }[] }>();
+    activeStructuredPath.nodes.forEach((n, idx) => {
+      if (!n.valid) return;
+      if (!groups.has(n.questionBankId)) {
+        const bank = getBank(n.questionBankId);
+        groups.set(n.questionBankId, {
+          bankId: n.questionBankId,
+          bankName: bank?.name || n.questionBankId,
+          entries: [],
+        });
+      }
+      groups.get(n.questionBankId)!.entries.push({
+        moduleId: n.moduleId,
+        moduleName: n.moduleName || n.title,
+        order: idx,
+        status: n.status,
+      });
+    });
+    return Array.from(groups.values());
+  }, [activeStructuredPath]);
 
   const moduleQuestions = questions.filter(q => q.moduleId === activeModuleId);
   const totalBatches = Math.ceil(moduleQuestions.length / BATCH_SIZE);
@@ -408,8 +455,69 @@ const Practice: React.FC = () => {
     <div style={{ padding: 24 }}>
       <Title level={2}>练习中心</Title>
       <Text type="secondary">
-        基于 Python 编程的系统练习，通过做题自动更新学习画像
+        {activeStructuredPath
+          ? `按当前学习路径练习：${activeStructuredPath.title}`
+          : '基于 Python 编程的系统练习，通过做题自动更新学习画像'}
       </Text>
+
+      {/* 路径 banner */}
+      {activeStructuredPath && (
+        <Card
+          size="small"
+          style={{
+            marginTop: 16,
+            background: 'linear-gradient(135deg, #e6f4ff 0%, #bae7ff 100%)',
+            borderColor: '#1890ff',
+          }}
+        >
+          <Row align="middle" gutter={16}>
+            <Col flex="auto">
+              <Space>
+                <AimOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+                <div>
+                  <Text strong>📍 当前路径：{activeStructuredPath.title}</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    共 {activeStructuredPath.nodes.length} 个阶段 ·
+                    已完成 {activeStructuredPath.nodes.filter(n => n.status === 'completed').length} 个 ·
+                    当前在第 {activeStructuredPath.nodes.findIndex(n => n.status !== 'completed') + 1 || activeStructuredPath.nodes.length} 步
+                  </Text>
+                </div>
+              </Space>
+            </Col>
+            <Col>
+              <Space>
+                <Button onClick={() => onNavigate?.('path')}>查看完整路径</Button>
+                <Button
+                  type="link"
+                  danger
+                  size="small"
+                  onClick={() => {
+                    clearActiveStructuredPath();
+                    setActiveStructuredPath(null);
+                    message.info('已退出当前路径');
+                  }}
+                >
+                  退出路径
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {!activeStructuredPath && (
+        <Card
+          size="small"
+          style={{ marginTop: 16, background: '#fffbe6', borderColor: '#ffe58f' }}
+        >
+          <Space>
+            <Text>💡</Text>
+            <Text>当前无活跃学习路径。</Text>
+            <Button type="link" onClick={() => onNavigate?.('path')}>去生成路径 →</Button>
+          </Space>
+        </Card>
+      )}
 
       {/* 总体进度 */}
       <Card style={{ marginTop: 16, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>
@@ -466,83 +574,133 @@ const Practice: React.FC = () => {
       <Row gutter={24} style={{ marginTop: 16 }}>
         {/* 左侧：模块列表 */}
         <Col span={6}>
-          <Card title="学习模块" bodyStyle={{ padding: 0 }}>
-            <Collapse
-              activeKey={[activeModuleId]}
-              onChange={keys => {
-                // Collapse onChange 传入合并后的所有 key，需找出新增的那个
-                const newKey = (keys as string[]).find(k => k !== activeModuleId);
-                if (newKey) {
-                  setActiveModuleId(newKey);
-                  setBatchIndex(0);
-                }
-              }}
-              style={{ background: '#fff' }}
-            >
-              {learningPlan.modules.map((module, mIdx) => {
-                const progress = moduleProgress.find(p => p.moduleId === module.id);
-                const isActive = module.id === activeModuleId;
-
-                return (
-                  <Panel
-                    key={module.id}
-                    header={
-                      <Space>
-                        <Avatar
-                          size="small"
+          <Card title={pathModuleGroups ? '路径模块' : '学习模块'} bodyStyle={{ padding: 0 }}>
+            {pathModuleGroups ? (
+              // 路径模式：按题库分组展示
+              <div style={{ padding: 8 }}>
+                {pathModuleGroups.map((group, gIdx) => (
+                  <div key={group.bankId}>
+                    {gIdx > 0 && <Divider style={{ margin: '8px 0' }} />}
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', padding: '4px 8px' }}>
+                      {group.bankName}
+                    </Text>
+                    {group.entries.map(entry => {
+                      const isActive = entry.moduleId === activeModuleId;
+                      const progress = moduleProgress.find(p => p.moduleId === entry.moduleId);
+                      return (
+                        <div
+                          key={entry.moduleId}
+                          onClick={() => { setActiveModuleId(entry.moduleId); setBatchIndex(0); }}
                           style={{
-                            background: progress && progress.score >= 80
-                              ? '#52c41a'
-                              : progress && progress.score >= 50
-                              ? '#1890ff'
-                              : '#d9d9d9',
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            background: isActive ? '#e6f4ff' : 'transparent',
+                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
                           }}
                         >
-                          {mIdx + 1}
-                        </Avatar>
+                          <Avatar
+                            size="small"
+                            style={{
+                              background: entry.status === 'completed' ? '#52c41a' : isActive ? '#1890ff' : '#d9d9d9',
+                            }}
+                          >
+                            {entry.order + 1}
+                          </Avatar>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text strong={isActive} ellipsis>{entry.moduleName}</Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {progress?.completedQuestions ?? 0} / 12 题 · {progress?.score ?? 0}%
+                            </Text>
+                          </div>
+                          {entry.status === 'completed' && <CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // 无路径模式：原样展示
+              <Collapse
+                activeKey={[activeModuleId]}
+                onChange={keys => {
+                  const newKey = (keys as string[]).find(k => k !== activeModuleId);
+                  if (newKey) {
+                    setActiveModuleId(newKey);
+                    setBatchIndex(0);
+                  }
+                }}
+                style={{ background: '#fff' }}
+              >
+                {learningPlan.modules.map((module, mIdx) => {
+                  const progress = moduleProgress.find(p => p.moduleId === module.id);
+                  const isActive = module.id === activeModuleId;
+
+                  return (
+                    <Panel
+                      key={module.id}
+                      header={
+                        <Space>
+                          <Avatar
+                            size="small"
+                            style={{
+                              background: progress && progress.score >= 80
+                                ? '#52c41a'
+                                : progress && progress.score >= 50
+                                ? '#1890ff'
+                                : '#d9d9d9',
+                            }}
+                          >
+                            {mIdx + 1}
+                          </Avatar>
+                          <div>
+                            <Text strong={isActive}>{module.name}</Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {module.questionCount} 题 · 已完成 {progress?.completedQuestions ?? 0} 题
+                            </Text>
+                          </div>
+                        </Space>
+                      }
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }} size="middle">
                         <div>
-                          <Text strong={isActive}>{module.name}</Text>
-                          <br />
-                          <Text type="secondary" style={{ fontSize: 11 }}>
-                            {module.questionCount} 题 · 已完成 {progress?.completedQuestions ?? 0} 题
-                          </Text>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>模块得分</Text>
+                            <Text strong style={{ fontSize: 12, color: progress && progress.score >= 80 ? '#52c41a' : '#000' }}>
+                              {progress?.score ?? 0}%
+                            </Text>
+                          </div>
+                          <Progress
+                            percent={progress?.score ?? 0}
+                            size="small"
+                            showInfo={false}
+                            strokeColor={progress && progress.score >= 80 ? '#52c41a' : '#1890ff'}
+                          />
                         </div>
-                      </Space>
-                    }
-                  >
-                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Text type="secondary" style={{ fontSize: 12 }}>模块得分</Text>
-                          <Text strong style={{ fontSize: 12, color: progress && progress.score >= 80 ? '#52c41a' : '#000' }}>
-                            {progress?.score ?? 0}%
-                          </Text>
-                        </div>
-                        <Progress
-                          percent={progress?.score ?? 0}
+                        <Divider style={{ margin: '4px 0' }} />
+                        <Button
+                          type={isActive ? 'primary' : 'default'}
                           size="small"
-                          showInfo={false}
-                          strokeColor={progress && progress.score >= 80 ? '#52c41a' : '#1890ff'}
-                        />
-                      </div>
-                      <Divider style={{ margin: '4px 0' }} />
-                      <Button
-                        type={isActive ? 'primary' : 'default'}
-                        size="small"
-                        block
-                        icon={<RocketOutlined />}
-                        onClick={() => {
-                          setActiveModuleId(module.id);
-                          setBatchIndex(0);
-                        }}
-                      >
-                        {progress?.completedQuestions ?? 0 > 0 ? '继续练习' : '开始练习'}
-                      </Button>
-                    </Space>
-                  </Panel>
-                );
-              })}
-            </Collapse>
+                          block
+                          icon={<RocketOutlined />}
+                          onClick={() => {
+                            setActiveModuleId(module.id);
+                            setBatchIndex(0);
+                          }}
+                        >
+                          {progress?.completedQuestions ?? 0 > 0 ? '继续练习' : '开始练习'}
+                        </Button>
+                      </Space>
+                    </Panel>
+                  );
+                })}
+              </Collapse>
+            )}
           </Card>
         </Col>
 

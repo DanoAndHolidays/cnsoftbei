@@ -19,6 +19,7 @@ import { defaultTutorHistory, tutorQuickQuestions } from '../data/mockData';
 import type { QAItem, StudentProfile } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
+import { searchResources } from '../services/resourceStorage';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -305,6 +306,14 @@ const Tutor: React.FC = () => {
       let systemPrompt = modePrompts[activeMode] || modePrompts.text;
       systemPrompt += profileCtx;
 
+      // 添加相关已生成资源的上下文
+      const relatedResources = searchResources(q.substring(0, 50));
+      if (relatedResources.length > 0) {
+        systemPrompt += '\n\n【相关已生成资源】\n' + relatedResources.slice(0, 2).map(r =>
+          `- [${r.type}] ${r.topic}: ${r.content.substring(0, 300)}...`
+        ).join('\n') + '\n\n参考以上资源内容进行回答。';
+      }
+
       let userContent = q;
       if (isFollowUp && contextParent) {
         systemPrompt += `\n\n用户可能正在基于之前的回答进行追问或提出新问题。请根据上下文判断：
@@ -403,7 +412,7 @@ const Tutor: React.FC = () => {
         pendingLastGeneratedId = qaId;
         if (followUpParent) setFollowUpParent(null);
       }
-      else { console.error('Tutor failed:', error); message.error('解答失败：' + error.message); }
+      else { console.error('Tutor failed:', error); const errMsg = error.message || '未知错误'; message.error(`解答失败：${errMsg}`); }
     } finally {
       setIsGenerating(false);
       abortRef.current = null;

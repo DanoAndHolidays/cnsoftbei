@@ -66,6 +66,33 @@ export interface LearningPath {
   currentNodeId: string;
 }
 
+// ============ 结构化学习路径（路径-题库打通专用） ============
+
+/** 结构化路径节点：每个节点对应题库中的一个具体模块 */
+export interface StructuredLearningNode extends LearningNode {
+  questionBankId: string;     // 题库 ID，如 'python-basics'
+  moduleId: string;           // 模块 ID，如 'module-1'
+  moduleName?: string;        // 题库模块名（冗余存储，便于 UI 展示）
+  isEntry?: boolean;          // 是否为路径入口节点
+  valid?: boolean;            // 引用校验结果；false 时 UI 降级显示
+}
+
+/** 结构化路径数据（新路径的唯一数据形态） */
+export interface StructuredLearningPathData {
+  id: string;                 // 唯一 ID（AI 生成时用 'ai-' 前缀）
+  title: string;
+  description: string;
+  source: 'ai-generated' | 'predefined' | 'adopted';
+  predefinedId?: string;      // 采用预定义时存原 ID
+  nodes: StructuredLearningNode[];
+  createdAt: string;          // ISO 时间
+}
+
+/** AI 响应解析结果 */
+export type PathParseResult =
+  | { ok: true; path: StructuredLearningPathData }
+  | { ok: false; errors: string[] };
+
 // 聊天消息
 export interface ChatMessage {
   id: string;
@@ -93,6 +120,25 @@ export interface LearningAssessment {
   score: number;
   trend: 'up' | 'down' | 'stable';
   feedback: string;
+}
+
+// ============ 学习路径 ============
+
+export interface PathModule {
+  questionBankId: string;
+  moduleId: string;
+  name: string;
+  isEntry?: boolean;
+  estimatedHours?: number;
+}
+
+export interface StructuredLearningPath {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  profileMatchTags: string[];
+  modules: PathModule[];
 }
 
 // ============ 练习中心 ============
