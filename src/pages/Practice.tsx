@@ -18,7 +18,9 @@ import {
   submitAnswer,
   getOrCreatePracticeState,
   resetPracticeState,
+  setActiveBank,
 } from '../services/practiceGrader';
+import { loadActiveStructuredPath, clearActiveStructuredPath } from '../services/activePathStorage';
 import { usePageCache } from '../context/PageCacheContext';
 
 const { Title, Text, Paragraph } = Typography;
@@ -36,7 +38,7 @@ interface QuestionResult {
   isSubmitted: boolean;
 }
 
-const Practice: React.FC = () => {
+const Practice: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
   const [activeModuleId, setActiveModuleId] = useState<string>(() =>
@@ -63,9 +65,26 @@ const Practice: React.FC = () => {
     return state.moduleProgress;
   });
 
+  // 加载活跃路径
+  const [activeStructuredPath, setActiveStructuredPath] = useState(() => loadActiveStructuredPath());
+  // T12 占位：onNavigate/clearActiveStructuredPath/setActiveStructuredPath 将在 T13/T14 使用
+  void onNavigate;
+  void clearActiveStructuredPath;
+  void setActiveStructuredPath;
+
   useEffect(() => {
     saveState({ activeModuleId, batchIndex, results });
   }, [activeModuleId, batchIndex, results, saveState]);
+
+  // 当活跃路径变化时，同步 activeBank 为路径第一个节点对应的题库
+  useEffect(() => {
+    if (activeStructuredPath && activeStructuredPath.nodes.length > 0) {
+      const firstNode = activeStructuredPath.nodes[0];
+      if (firstNode.valid) {
+        setActiveBank(firstNode.questionBankId);
+      }
+    }
+  }, [activeStructuredPath]);
 
   const moduleQuestions = questions.filter(q => q.moduleId === activeModuleId);
   const totalBatches = Math.ceil(moduleQuestions.length / BATCH_SIZE);
