@@ -431,6 +431,19 @@ export function submitAnswer(
 
   savePracticeState(state);
   window.dispatchEvent(new CustomEvent('practiceStateUpdated'));
+
+  // 通知 Path 页同步节点进度
+  const moduleProgress = state.moduleProgress.find(p => p.moduleId === moduleId);
+  if (moduleProgress) {
+    window.dispatchEvent(new CustomEvent('moduleProgressUpdated', {
+      detail: {
+        moduleId,
+        bankId: getActiveBank(),
+        score: moduleProgress.score,
+      },
+    }));
+  }
+
   return state;
 }
 
