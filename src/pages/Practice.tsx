@@ -8,6 +8,7 @@ import {
   CloseCircleOutlined,
   RocketOutlined,
   ReloadOutlined,
+  AimOutlined,
 } from '@ant-design/icons';
 import type { PracticeQuestion, ModuleProgress } from '../types';
 import {
@@ -67,10 +68,6 @@ const Practice: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate
 
   // 加载活跃路径
   const [activeStructuredPath, setActiveStructuredPath] = useState(() => loadActiveStructuredPath());
-  // T12 占位：onNavigate/clearActiveStructuredPath/setActiveStructuredPath 将在 T13/T14 使用
-  void onNavigate;
-  void clearActiveStructuredPath;
-  void setActiveStructuredPath;
 
   useEffect(() => {
     saveState({ activeModuleId, batchIndex, results });
@@ -427,8 +424,69 @@ const Practice: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate
     <div style={{ padding: 24 }}>
       <Title level={2}>练习中心</Title>
       <Text type="secondary">
-        基于 Python 编程的系统练习，通过做题自动更新学习画像
+        {activeStructuredPath
+          ? `按当前学习路径练习：${activeStructuredPath.title}`
+          : '基于 Python 编程的系统练习，通过做题自动更新学习画像'}
       </Text>
+
+      {/* 路径 banner */}
+      {activeStructuredPath && (
+        <Card
+          size="small"
+          style={{
+            marginTop: 16,
+            background: 'linear-gradient(135deg, #e6f4ff 0%, #bae7ff 100%)',
+            borderColor: '#1890ff',
+          }}
+        >
+          <Row align="middle" gutter={16}>
+            <Col flex="auto">
+              <Space>
+                <AimOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+                <div>
+                  <Text strong>📍 当前路径：{activeStructuredPath.title}</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    共 {activeStructuredPath.nodes.length} 个阶段 ·
+                    已完成 {activeStructuredPath.nodes.filter(n => n.status === 'completed').length} 个 ·
+                    当前在第 {activeStructuredPath.nodes.findIndex(n => n.status !== 'completed') + 1 || activeStructuredPath.nodes.length} 步
+                  </Text>
+                </div>
+              </Space>
+            </Col>
+            <Col>
+              <Space>
+                <Button onClick={() => onNavigate?.('path')}>查看完整路径</Button>
+                <Button
+                  type="link"
+                  danger
+                  size="small"
+                  onClick={() => {
+                    clearActiveStructuredPath();
+                    setActiveStructuredPath(null);
+                    message.info('已退出当前路径');
+                  }}
+                >
+                  退出路径
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {!activeStructuredPath && (
+        <Card
+          size="small"
+          style={{ marginTop: 16, background: '#fffbe6', borderColor: '#ffe58f' }}
+        >
+          <Space>
+            <Text>💡</Text>
+            <Text>当前无活跃学习路径。</Text>
+            <Button type="link" onClick={() => onNavigate?.('path')}>去生成路径 →</Button>
+          </Space>
+        </Card>
+      )}
 
       {/* 总体进度 */}
       <Card style={{ marginTop: 16, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>
