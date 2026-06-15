@@ -13,6 +13,12 @@ import os
 import sys
 from pathlib import Path
 
+# Windows GBK console 兼容：强制 UTF-8 输出
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # 让 `import components` / `import slides` 能工作
 PPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PPT_DIR))
