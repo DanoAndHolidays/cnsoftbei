@@ -14,6 +14,10 @@ from pathlib import Path
 
 from . import theme
 
+# 配置中文字体（让维度名等中文能正常渲染）
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'PingFang SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False   # 负号正常显示
+
 
 def render_radar(
     out_path: str,
