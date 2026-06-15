@@ -17,9 +17,9 @@ import { getAllGeneratedResources, type GeneratedResource } from '../services/re
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
 import { parseStructuredPathResponse } from '../services/pathParser';
-import { saveActiveStructuredPath } from '../services/activePathStorage';
-import { getAllBankIds, getBank } from '../services/practiceGrader';
-import type { LearningPath, LearningNode } from '../types';
+import { loadActiveStructuredPath, saveActiveStructuredPath } from '../services/activePathStorage';
+import { getAllBankIds, getBank, COMPLETION_THRESHOLD } from '../services/practiceGrader';
+import type { LearningPath, LearningNode, StructuredLearningNode } from '../types';
 
 const { Title, Text } = Typography
 
@@ -29,6 +29,25 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
   const [pathData, setPathData] = useState<LearningPath>(() => {
+    // 优先使用已保存的结构化路径
+    const saved = loadActiveStructuredPath();
+    if (saved) {
+      return {
+        id: saved.id,
+        title: saved.title,
+        description: saved.description,
+        nodes: saved.nodes.map((n: StructuredLearningNode) => ({
+          id: n.id,
+          title: n.title,
+          description: n.description,
+          status: n.status,
+          progress: n.progress,
+          estimatedHours: n.estimatedHours,
+        })),
+        estimatedTime: `${Math.round(saved.nodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+        currentNodeId: saved.nodes[0]?.id || 'node-1',
+      };
+    }
     const cached = cachedState?.pathData;
     if (cached) {
       return {
@@ -60,6 +79,44 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     const handler = () => setGeneratedResources(getAllGeneratedResources());
     window.addEventListener('generatedResourcesUpdated', handler);
     return () => window.removeEventListener('generatedResourcesUpdated', handler);
+  }, []);
+
+  // 监听 Practice 进度更新
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || !detail.moduleId) return;
+      const { moduleId, score } = detail;
+
+      const saved = loadActiveStructuredPath();
+      if (!saved) return;
+
+      let changed = false;
+      saved.nodes = saved.nodes.map(n => {
+        // 匹配：节点 moduleId 与事件 moduleId 相同
+        if (n.moduleId !== moduleId) return n;
+        if (n.status === 'completed') return n; // 不可回退
+
+        changed = true;
+        if (score >= COMPLETION_THRESHOLD) {
+          return { ...n, status: 'completed' as const, progress: 100 };
+        }
+        return { ...n, status: 'in-progress' as const, progress: score };
+      });
+
+      if (changed) {
+        saveActiveStructuredPath(saved);
+        setPathData(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(node => {
+            const updated = saved.nodes.find(n => n.id === node.id);
+            return updated ? { ...node, status: updated.status, progress: updated.progress } : node;
+          }),
+        }));
+      }
+    };
+    window.addEventListener('moduleProgressUpdated', handler);
+    return () => window.removeEventListener('moduleProgressUpdated', handler);
   }, []);
 
   // 缓存状态变化
