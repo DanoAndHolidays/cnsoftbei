@@ -115,14 +115,125 @@ export async function gradeByAI(
       },
     );
 
-    // 提取数字分数
-    const scoreMatch = fullResponse.match(/\d+/);
-    if (scoreMatch) {
-      return Math.min(100, Math.max(0, parseInt(scoreMatch[0], 10)));
+    // 提取数字分数 — 取所有匹配中的最高分（AI 常在解释中放低分，最终结论给合理分）
+    const allScores = fullResponse.match(/\d+/g);
+    if (allScores && allScores.length > 0) {
+      const clampedScores = allScores
+        .map(s => parseInt(s, 10))
+        .map(n => Math.min(100, Math.max(0, n)));
+      if (clampedScores.length > 0) return Math.max(...clampedScores);
     }
     return 0;
   }
   return 0;
+}
+
+// ==================== 答案相似度计算（Jaccard） ====================
+function jaccardSimilarity(a: string, b: string): number {
+  const tokenize = (s: string) => {
+    // 按中文字符和英文单词分词
+    const tokens = s.match(/[一-鿿]|[a-zA-Z]+/g) || [];
+    return new Set(tokens.map(t => t.toLowerCase()));
+  };
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+  if (setA.size === 0 && setB.size === 0) return 1;
+  let intersection = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersection++;
+  }
+  return intersection / (setA.size + setB.size - intersection);
+}
+
+// ==================== AI 判分合理性断言 ====================
+export function assertScoreReasonable(
+  score: number,
+  userAnswer: string,
+  sampleAnswer: string
+): { reasonable: boolean; reason?: string } {
+  // 两者都为空 — 无法比较，视为合理
+  if (!userAnswer.trim() && !sampleAnswer.trim()) {
+    return { reasonable: true };
+  }
+
+  const similarity = jaccardSimilarity(userAnswer, sampleAnswer);
+
+  // 答案高度相似但分数过低
+  if (similarity > 0.6 && score < 40) {
+    return {
+      reasonable: false,
+      reason: `答案相似度 ${(similarity * 100).toFixed(0)}% 但分数仅 ${score}，AI 判分可能偏低`,
+    };
+  }
+
+  // 答案差异很大但分数过高
+  if (similarity < 0.2 && score > 80) {
+    return {
+      reasonable: false,
+      reason: `答案相似度仅 ${(similarity * 100).toFixed(0)}% 但分数 ${score}，AI 判分可能偏高`,
+    };
+  }
+
+  // 用户答案为空或极短（排除空答案得 0 分的正常情况），分数应很低
+  if (userAnswer.trim().length > 0 && userAnswer.trim().length < 5 && score > 30) {
+    return {
+      reasonable: false,
+      reason: `答案仅 ${userAnswer.trim().length} 字但分数 ${score}，AI 判分可能偏高`,
+    };
+  }
+
+  return { reasonable: true };
+}
+
+// ==================== AI 判分一致性校验（并发 3 次取中位数） ====================
+export async function gradeByAIVerified(
+  question: PracticeQuestion,
+  userAnswer: string,
+): Promise<{ score: number; confidence: 'high' | 'low'; details: number[] }> {
+  if (question.type !== 'short') {
+    return { score: 0, confidence: 'high', details: [] };
+  }
+
+  // 并发调用 3 次
+  const results = await Promise.all(
+    Array.from({ length: 3 }, () => gradeByAI(question, userAnswer))
+  );
+
+  // 取中位数
+  const sorted = [...results].sort((a, b) => a - b);
+  const median = sorted[1];
+
+  // 计算偏差
+  const maxDeviation = Math.max(
+    Math.abs(sorted[0] - median),
+    Math.abs(sorted[2] - median)
+  );
+
+  // 合理性断言
+  const reasonableness = assertScoreReasonable(median, userAnswer, question.sampleAnswer || '');
+
+  const confidence: 'high' | 'low' =
+    maxDeviation > 20 || !reasonableness.reasonable ? 'low' : 'high';
+
+  // 第一次结果不合理时自动重试一次
+  if (confidence === 'low' && reasonableness.reasonable === false) {
+    const retryResults = await Promise.all(
+      Array.from({ length: 3 }, () => gradeByAI(question, userAnswer))
+    );
+    const retrySorted = [...retryResults].sort((a, b) => a - b);
+    const retryMedian = retrySorted[1];
+    const retryReasonable = assertScoreReasonable(retryMedian, userAnswer, question.sampleAnswer || '');
+
+    if (retryReasonable.reasonable) {
+      return {
+        score: retryMedian,
+        confidence: 'high',
+        details: [...results, ...retryResults],
+      };
+    }
+  }
+
+  return { score: median, confidence, details: results };
 }
 
 // ==================== 计算模块进度 ====================
@@ -149,8 +260,9 @@ export function calculateModuleProgress(
   const shortAnswerTotalScore = shortResults.reduce((sum, r) => sum + (r.aiScore || 0), 0);
 
   // 计算总分：客观题每题 50%权重，简答题每题 50%权重
-  const objectiveScore = totalQuestions > 0
-    ? (correctCount / moduleQuestions.filter(q => q.type !== 'short').length) * 50
+  const objectiveCount = moduleQuestions.filter(q => q.type !== 'short').length;
+  const objectiveScore = objectiveCount > 0
+    ? (correctCount / objectiveCount) * 50
     : 0;
   const shortScore = totalQuestions > 0
     ? (shortAnswerTotalScore / 100) * 50
@@ -215,7 +327,7 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
   if (tagScores.length === 0) return;
 
   const savedProfile = localStorage.getItem(userKey('studentProfile'));
-  let profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
+  const profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
 
   // 按 Tag 维度分组
   const dimensionScores: Record<string, { scores: number[]; count: number }> = {};

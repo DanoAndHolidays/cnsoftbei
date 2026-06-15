@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
+import { server } from './mocks/server'
 
 // ==================== localStorage Mock ====================
-function createStorageMock(name: string) {
+function createStorageMock() {
   let store: Record<string, string> = {}
   return {
     getItem: (key: string) => (key in store ? store[key] : null),
@@ -15,24 +16,25 @@ function createStorageMock(name: string) {
   }
 }
 
-const localStorageMock = createStorageMock('localStorage')
-const sessionStorageMock = createStorageMock('sessionStorage')
+const localStorageMock = createStorageMock()
+const sessionStorageMock = createStorageMock()
 
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
 Object.defineProperty(globalThis, 'sessionStorage', { value: sessionStorageMock })
 
 // ==================== window.dispatchEvent Mock ====================
-const listeners: Record<string, Function[]> = {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const listeners: Record<string, ((...args: any[]) => void)[]> = {}
 const originalAddEventListener = window.addEventListener.bind(window)
 const originalRemoveEventListener = window.removeEventListener.bind(window)
 
-window.addEventListener = (type: string, listener: any) => {
+window.addEventListener = (type: string, listener: EventListenerOrEventListenerObject) => {
   if (!listeners[type]) listeners[type] = []
-  listeners[type].push(listener)
+  listeners[type].push(listener as (...args: unknown[]) => void)
   originalAddEventListener(type, listener)
 }
 
-window.removeEventListener = (type: string, listener: any) => {
+window.removeEventListener = (type: string, listener: EventListenerOrEventListenerObject) => {
   if (listeners[type]) {
     listeners[type] = listeners[type].filter(l => l !== listener)
   }
@@ -40,8 +42,6 @@ window.removeEventListener = (type: string, listener: any) => {
 }
 
 // ==================== fetch Mock ====================
-const originalFetch = globalThis.fetch
-
 // 每个测试前清理
 beforeEach(() => {
   localStorageMock.clear()
@@ -57,3 +57,9 @@ export { localStorageMock, sessionStorageMock }
 
 // ==================== console 抑制（可选） ====================
 // 某些测试会产生预期的 console.error，可在单个测试中用 vi.spyOn 恢复
+
+// ==================== msw 服务器生命周期 ====================
+// 启动 msw 服务器，拦截所有 fetch 请求
+beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())

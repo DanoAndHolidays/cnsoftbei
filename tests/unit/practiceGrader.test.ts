@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ==================== Mock 依赖 ====================
@@ -25,7 +26,7 @@ vi.mock('../../src/services/learningOrchestrator', () => ({
     generatedAt: new Date().toISOString(),
     source: '练习',
   })),
-  syncLearningProfileFromPractice: vi.fn((profile, tagScores) => ({
+  syncLearningProfileFromPractice: vi.fn((profile) => ({
     ...profile,
     learningProfile: {
       user: { id: profile.id, name: profile.name, major: profile.major, grade: profile.grade },
@@ -69,6 +70,8 @@ vi.mock('../../src/data/mockData', () => ({
 import {
   checkAnswer,
   gradeByAI,
+  gradeByAIVerified,
+  assertScoreReasonable,
   calculateModuleProgress,
   calculateTagScores,
   updateProfileByTagScores,
@@ -302,14 +305,14 @@ describe('gradeByAI', () => {
     await expect(gradeByAI(q, '答案')).rejects.toThrow('Network error')
   })
 
-  it('AI 返回多个数字 — 取第一个（已知行为）', async () => {
+  it('AI 返回多个数字 — 取最高分', async () => {
     vi.mocked(streamChatCompletion).mockImplementation(
       async (_msgs, onChunk) => { onChunk?.('有 3 个错误，得分 60', false); return '有 3 个错误，得分 60' }
     )
     const q = makeQuestion({ type: 'short' })
     const score = await gradeByAI(q, '答案')
-    // 已知行为：取第一个数字 3，而非 60
-    expect(score).toBe(3)
+    // 取最高分 60（过滤掉不在 0-100 范围的数字后取 max）
+    expect(score).toBe(60)
   })
 
   it('AI 返回浮点数 — parseInt 截断', async () => {
@@ -378,17 +381,20 @@ describe('calculateModuleProgress', () => {
     expect(progress.completedQuestions).toBe(0)
   })
 
-  it('纯简答题模块 — 客观题分母为 0（已知 Bug）', () => {
+  it('纯简答题模块 — 客观题分母为 0 不返回 NaN', () => {
     const shortOnlyQuestions = [
       makeQuestion({ id: 's1', moduleId: 'module-s', type: 'short', tags: ['syntax'] }),
       makeQuestion({ id: 's2', moduleId: 'module-s', type: 'short', tags: ['syntax'] }),
     ]
     const results = [
-      makeResult({ questionId: 's1', isCorrect: null, aiScore: 80 }),
+      makeResult({ questionId: 's1', moduleId: 'module-s', isCorrect: null, aiScore: 80 }),
     ]
+    // 直接调用 calculateModuleProgress（submitAnswer 内部用全局 questions，不含 module-s）
     const progress = calculateModuleProgress('module-s', results, shortOnlyQuestions)
-    // 客观题分母为 0 → NaN
-    expect(isNaN(progress.score) || progress.score === 0).toBe(true)
+    // 客观题分母为 0 → objectiveScore = 0，不产生 NaN
+    expect(isNaN(progress.score)).toBe(false)
+    // 简答题 80/100 * 50 = 40
+    expect(progress.score).toBe(40)
   })
 
   it('totalQuestions 为 0 — 返回 0 分', () => {
@@ -731,5 +737,126 @@ describe('resetPracticeState', () => {
     resetPracticeState()
     const saved = JSON.parse(localStorage.getItem('practiceState')!)
     expect(saved.results).toEqual([])
+  })
+})
+
+// ==================== assertScoreReasonable 测试 ====================
+
+describe('assertScoreReasonable', () => {
+  it('高度相似 + 低分 → 不合理', () => {
+    const result = assertScoreReasonable(
+      20,
+      'Python 是一种解释型编程语言',
+      'Python 是一种解释型编程语言，支持面向对象'
+    )
+    expect(result.reasonable).toBe(false)
+    expect(result.reason).toContain('相似度')
+  })
+
+  it('低相似度 + 高分 → 不合理', () => {
+    const result = assertScoreReasonable(
+      90,
+      '完全不相关的答案',
+      'Python 是一种解释型编程语言，支持面向对象和函数式编程'
+    )
+    expect(result.reasonable).toBe(false)
+    expect(result.reason).toContain('相似度')
+  })
+
+  it('答案极短 + 高分 → 不合理', () => {
+    const result = assertScoreReasonable(50, '好', '详细参考答案内容')
+    expect(result.reasonable).toBe(false)
+    expect(result.reason).toContain('字')
+  })
+
+  it('正常情况 — 合理', () => {
+    const result = assertScoreReasonable(
+      75,
+      'Python 是一种面向对象的解释型语言，支持多种编程范式',
+      'Python 是一种解释型编程语言，支持面向对象和函数式编程'
+    )
+    expect(result.reasonable).toBe(true)
+    expect(result.reason).toBeUndefined()
+  })
+
+  it('答案为空字符串 — 分数 0 合理', () => {
+    const result = assertScoreReasonable(0, '', '参考答案')
+    expect(result.reasonable).toBe(true)
+  })
+
+  it('两个空字符串 — 相似度为 1，正常', () => {
+    const result = assertScoreReasonable(0, '', '')
+    expect(result.reasonable).toBe(true)
+  })
+})
+
+// ==================== gradeByAIVerified 测试 ====================
+
+describe('gradeByAIVerified', () => {
+  beforeEach(() => {
+    vi.mocked(streamChatCompletion).mockReset()
+  })
+
+  it('非 short 题型 — 直接返回 0', async () => {
+    const q = makeQuestion({ type: 'choice' })
+    const result = await gradeByAIVerified(q, '答案')
+    expect(result.score).toBe(0)
+    expect(result.confidence).toBe('high')
+    expect(result.details).toEqual([])
+    expect(streamChatCompletion).not.toHaveBeenCalled()
+  })
+
+  it('三次返回一致 — 高置信度', async () => {
+    let callCount = 0
+    vi.mocked(streamChatCompletion).mockImplementation(
+      async (_msgs, onChunk) => {
+        callCount++
+        const score = '80'
+        onChunk?.(score, false)
+        return score
+      }
+    )
+    const q = makeQuestion({ type: 'short', sampleAnswer: 'Python 是一种解释型语言' })
+    const result = await gradeByAIVerified(q, 'Python 是一种解释型编程语言')
+    expect(result.score).toBe(80)
+    expect(result.confidence).toBe('high')
+    expect(result.details).toEqual([80, 80, 80])
+    expect(callCount).toBe(3)
+  })
+
+  it('三次返回偏差大 — 低置信度', async () => {
+    let callCount = 0
+    vi.mocked(streamChatCompletion).mockImplementation(
+      async (_msgs, onChunk) => {
+        callCount++
+        const scores = ['20', '80', '90']
+        const score = scores[(callCount - 1) % 3]
+        onChunk?.(score, false)
+        return score
+      }
+    )
+    const q = makeQuestion({ type: 'short', sampleAnswer: 'Python 是一种解释型语言' })
+    const result = await gradeByAIVerified(q, 'Python 是一种编程语言')
+    expect(result.details).toEqual([20, 80, 90])
+    // 中位数 80，偏差 max(60, 10) = 60 > 20 → 低置信度
+    expect(result.confidence).toBe('low')
+    expect(result.score).toBe(80)
+  })
+
+  it('取中位数而非平均值', async () => {
+    let callCount = 0
+    vi.mocked(streamChatCompletion).mockImplementation(
+      async (_msgs, onChunk) => {
+        callCount++
+        const scores = ['60', '70', '90']
+        const score = scores[(callCount - 1) % 3]
+        onChunk?.(score, false)
+        return score
+      }
+    )
+    const q = makeQuestion({ type: 'short', sampleAnswer: 'Python 解释型语言' })
+    const result = await gradeByAIVerified(q, 'Python 是解释型语言')
+    // sorted: [60, 70, 90] → median = 70
+    expect(result.score).toBe(70)
   })
 })

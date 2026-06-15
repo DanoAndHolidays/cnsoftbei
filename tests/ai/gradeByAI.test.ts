@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ==================== Mock ====================
@@ -138,12 +139,12 @@ describe('gradeByAI 防幻觉测试', () => {
       expect(await gradeByAI(makeShortQuestion(), '答案')).toBe(0)
     })
 
-    it('多个数字 "有 3 个错误，得分 60" → 取第一个 3', async () => {
+    it('多个数字 "有 3 个错误，得分 60" → 取最高分 60', async () => {
       vi.mocked(streamChatCompletion).mockImplementation(
         async (_m, onChunk) => { onChunk?.('有 3 个错误，得分 60', false); return '有 3 个错误，得分 60' }
       )
-      // 已知行为：regex 取第一个匹配
-      expect(await gradeByAI(makeShortQuestion(), '答案')).toBe(3)
+      // 改进行为：取最高分（过滤 0-100 范围后取 max）
+      expect(await gradeByAI(makeShortQuestion(), '答案')).toBe(60)
     })
 
     it('Markdown 包裹 "```85```" → 85', async () => {
@@ -161,8 +162,8 @@ describe('gradeByAI 防幻觉测试', () => {
           return text
         }
       )
-      // 取第一个数字
-      expect(await gradeByAI(makeShortQuestion(), '答案')).toBe(70)
+      // 取最高分 85（70, 85, 72 中最大）
+      expect(await gradeByAI(makeShortQuestion(), '答案')).toBe(85)
     })
 
     it('AI 返回 "N/A" → 0', async () => {

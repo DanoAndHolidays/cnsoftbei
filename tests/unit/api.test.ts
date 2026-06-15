@@ -1,4 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { server } from '../mocks/server'
+
+// 暂停 msw，让本文件的手工 fetch mock 生效
+beforeAll(() => server.close())
 
 // ==================== fetch Mock ====================
 
