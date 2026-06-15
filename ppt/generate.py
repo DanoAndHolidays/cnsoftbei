@@ -68,6 +68,13 @@ def main():
     print(f"[PPT] ✓ 已生成：{out_path}")
     print(f"[PPT]   slide 总数: {len(prs.slides)}")
 
+    # 清理 assessment mockup 生成的中间 PNG
+    try:
+        from components.assessment_mock import cleanup_mock_assets
+        cleanup_mock_assets()
+    except Exception:
+        pass
+
 
 if __name__ == "__main__":
     main()
