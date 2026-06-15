@@ -11,9 +11,9 @@ from pptx.enum.shapes import MSO_SHAPE
 
 # ============ 尺寸（EMU，1 inch = 914400 EMU，1 pt = 12700 EMU）============
 
-# 标准 16:9 幻灯片尺寸
-SLIDE_WIDTH = Emu(12192000)   # 13.333 inch
-SLIDE_HEIGHT = Emu(6858000)   # 7.5 inch
+# 标准 16:9 幻灯片尺寸（17.78"×10" 自定义宽屏，容纳原设计坐标）
+SLIDE_WIDTH = Emu(16256000)   # 1280 pt = 17.78 inch
+SLIDE_HEIGHT = Emu(9144000)   # 720 pt = 10 inch
 
 # 全局边距
 MARGIN_LR = Pt(60)            # 左右 60pt
