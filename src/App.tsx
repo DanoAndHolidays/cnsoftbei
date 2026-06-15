@@ -49,7 +49,7 @@ function App() {
       case 'assessment':
         return <Assessment />;
       case 'practice':
-        return <Practice />;
+        return <Practice onNavigate={setSelectedKey} />;
       default:
         return <Home />;
     }
