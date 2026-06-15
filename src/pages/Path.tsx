@@ -16,9 +16,10 @@ import { streamChatCompletion } from '../services/api';
 import { getAllGeneratedResources, type GeneratedResource } from '../services/resourceStorage';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
-import { parseStructuredPathResponse } from '../services/pathParser';
+import { parseStructuredPathResponse, adoptPredefinedPath } from '../services/pathParser';
 import { loadActiveStructuredPath, saveActiveStructuredPath } from '../services/activePathStorage';
 import { getAllBankIds, getBank, COMPLETION_THRESHOLD } from '../services/practiceGrader';
+import { allPaths } from '../services/pathRecommender';
 import type { LearningPath, LearningNode, StructuredLearningNode } from '../types';
 
 const { Title, Text } = Typography
@@ -268,6 +269,50 @@ ${bankList}
     abortRef.current?.abort();
   };
 
+  const handleAdoptPredefined = (predefinedId: string) => {
+    const p = allPaths.find(ap => ap.id === predefinedId);
+    if (!p) return;
+
+    const adopted = adoptPredefinedPath(
+      p.id,
+      p.name,
+      p.description,
+      p.modules.map(m => ({
+        questionBankId: m.questionBankId,
+        moduleId: m.moduleId,
+        name: m.name,
+        estimatedHours: m.estimatedHours,
+        isEntry: m.isEntry,
+      }))
+    );
+
+    saveActiveStructuredPath(adopted);
+
+    // 转换为 LearningPath
+    const newNodes: LearningNode[] = adopted.nodes.map(n => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      status: n.status,
+      progress: n.progress,
+      estimatedHours: n.estimatedHours,
+    }));
+
+    setPathData({
+      id: adopted.id,
+      title: adopted.title,
+      description: adopted.description,
+      nodes: newNodes,
+      estimatedTime: `${Math.round(newNodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+      currentNodeId: newNodes[0]?.id || 'node-1',
+    });
+    setActiveNode(newNodes[0]?.id || 'node-1');
+    setPlanningResult('已采用推荐路径');
+    setIsChangingPath(false);
+    setShowSteps(false);
+    message.success(`已采用「${p.name}」`);
+  };
+
   const handleGenerate = () => {
     const value = inputRef.current?.value || '';
     if (value.trim()) {
@@ -437,6 +482,52 @@ ${bankList}
               </Col>
             </Row>
           </Col>
+        </Row>
+      </Card>
+
+      {/* 推荐学习路径（预定义） */}
+      <Card title="推荐学习路径" style={{ marginTop: 24 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+          基于专家经验预制的 12 条结构化路径，每条都对应练习中心的具体题库模块
+        </Text>
+        <Row gutter={[16, 16]}>
+          {allPaths.map(p => {
+            const moduleCount = p.modules.length;
+            const isCurrent = pathData.id.startsWith(`adopted-${p.id}`);
+            return (
+              <Col span={6} key={p.id}>
+                <Card
+                  size="small"
+                  hoverable
+                  style={{
+                    borderColor: isCurrent ? '#1890ff' : undefined,
+                    borderWidth: isCurrent ? 2 : 1,
+                  }}
+                >
+                  <Text strong style={{ display: 'block', marginBottom: 4 }}>{p.name}</Text>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                    {p.description}
+                  </Text>
+                  <Space size={4} wrap style={{ marginBottom: 8 }}>
+                    {p.tags.slice(0, 3).map(t => (
+                      <Tag key={t} color="blue" style={{ fontSize: 11 }}>{t}</Tag>
+                    ))}
+                  </Space>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+                    共 {moduleCount} 个模块 · {p.modules.reduce((s, m) => s + (m.estimatedHours || 8), 0)}小时
+                  </div>
+                  <Button
+                    type={isCurrent ? 'primary' : 'default'}
+                    size="small"
+                    block
+                    onClick={() => handleAdoptPredefined(p.id)}
+                  >
+                    {isCurrent ? '当前采用' : '采用此路径'}
+                  </Button>
+                </Card>
+              </Col>
+            );
+          })}
         </Row>
       </Card>
 
