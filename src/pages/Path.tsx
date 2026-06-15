@@ -16,6 +16,9 @@ import { streamChatCompletion } from '../services/api';
 import { getAllGeneratedResources, type GeneratedResource } from '../services/resourceStorage';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
+import { parseStructuredPathResponse } from '../services/pathParser';
+import { saveActiveStructuredPath } from '../services/activePathStorage';
+import { getAllBankIds, getBank } from '../services/practiceGrader';
 import type { LearningPath, LearningNode } from '../types';
 
 const { Title, Text } = Typography
@@ -71,27 +74,36 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      const bankList = getAllBankIds().map(bankId => {
+        const bank = getBank(bankId);
+        if (!bank) return '';
+        return `- ${bankId}: ${bank.modules.map(m => `${m.id}:${m.name}`).join(' | ')}`;
+      }).filter(Boolean).join('\n');
+
       const messages = [
-        { role: 'system' as const, content: `你是路径规划智能体，专门为学生制定个性化的学习路径。
+        { role: 'system' as const, content: `你是路径规划智能体。学生会输入学习主题。
 
-请根据用户输入的学习主题或专业方向，生成一个详细的学习路径规划。
+可选题库与模块清单（共 ${getAllBankIds().length} 库）：
+${bankList}
 
-要求：
-1. 按照知识点的依赖关系排序（前置知识必须先学）
-2. 每个阶段有明确的目标和内容
-3. 包含预估学习时间
-4. 用清晰的层级结构展示
+任务：根据用户主题，从清单中挑选 3-6 个最相关的模块，按学习顺序排列。
+（解析器接受 1-N 节点，但 3-6 是建议范围。）
+每个节点必须包含合法的 questionBankId 和 moduleId。
+节点标题可与模块原名相同或重写以贴合主题。
+第一个节点 isEntry = true。
 
-请用以下JSON格式输出（只输出JSON，不要其他内容）：
+输出严格 JSON（仅 JSON，无其他文字）：
 {
-  "title": "学习路径名称",
-  "description": "路径描述",
+  "title": "<路径名>",
+  "description": "<路径描述>",
   "nodes": [
     {
-      "title": "阶段1名称",
-      "description": "阶段描述",
-      "estimatedHours": 8,
-      "resources": ["相关资源描述1", "资源2"]
+      "questionBankId": "<bankId>",
+      "moduleId": "<moduleId>",
+      "title": "<节点标题>",
+      "description": "<节点描述>",
+      "estimatedHours": <数字>,
+      "isEntry": true
     },
     ...
   ]
@@ -118,45 +130,45 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
         controller.signal,
       );
 
-      // 尝试解析JSON
-      try {
-        let jsonStr = fullResponse;
-        const jsonMatch = fullResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || fullResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1] || jsonMatch[0];
-        }
+      // 调用纯函数解析并校验
+      const result = parseStructuredPathResponse(fullResponse);
 
-        const planData = JSON.parse(jsonStr.includes('{') ? jsonStr.substring(jsonStr.indexOf('{')).replace(/```/g, '') : jsonStr);
-        hasJsonParsed = true;
-
-        const newNodes = planData.nodes.map((node: any, index: number) => ({
-          id: `node-${index + 1}`,
-          title: node.title,
-          description: node.description,
-          status: index === 0 ? 'in-progress' as const : 'locked' as const,
-          progress: 0,
-          estimatedHours: node.estimatedHours || 8,
-        }));
-
-        setPathData({
-          id: 'path-ai',
-          title: planData.title || `${topic}学习路径`,
-          description: planData.description || 'AI生成的个性化学习路径',
-          nodes: newNodes,
-          estimatedTime: `${Math.round(newNodes.reduce((sum: number, n: LearningNode) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
-          currentNodeId: newNodes[0]?.id || 'node-1',
-        });
-
-        setActiveNode(newNodes[0]?.id || 'node-1');
-        setPlanningResult('学习路径规划完成！');
-        setIsChangingPath(false);
-        setShowSteps(false);
-        message.success('AI已为您生成个性化学习路径');
-
-      } catch (parseError) {
-        console.error('Failed to parse path planning result:', parseError);
-        setPlanningResult('路径解析异常，请查看生成内容');
+      if (!result.ok) {
+        setPlanningResult(`路径解析失败：${result.errors.join('; ')}`);
+        console.error('Path parse errors:', result.errors);
+        return;
       }
+
+      const aiPath = result.path;
+      hasJsonParsed = true;
+
+      // 写入 localStorage
+      saveActiveStructuredPath(aiPath);
+
+      // 转换为本页使用的 LearningPath（含 status 映射）
+      const newNodes: LearningNode[] = aiPath.nodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        description: n.description,
+        status: n.status,
+        progress: n.progress,
+        estimatedHours: n.estimatedHours,
+      }));
+
+      setPathData({
+        id: aiPath.id,
+        title: aiPath.title,
+        description: aiPath.description,
+        nodes: newNodes,
+        estimatedTime: `${Math.round(newNodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+        currentNodeId: newNodes[0]?.id || 'node-1',
+      });
+
+      setActiveNode(newNodes[0]?.id || 'node-1');
+      setPlanningResult('学习路径规划完成！');
+      setIsChangingPath(false);
+      setShowSteps(false);
+      message.success(`AI 已为您生成包含 ${aiPath.nodes.filter(n => n.valid !== false).length} 个阶段的个性化学习路径`);
 
     } catch (error: any) {
       if (error?.name === 'AbortError') {
