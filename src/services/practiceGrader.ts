@@ -15,7 +15,14 @@ import goBank from '../data/goBasics.json';
 import csharpBank from '../data/csharpBasics.json';
 import rustBank from '../data/rustBasics.json';
 import devopsBank from '../data/devopsBasics.json';
+import networksBank from '../data/computerNetworks.json';
+import linuxBank from '../data/linuxFundamentals.json';
+import mlBank from '../data/machineLearning.json';
 import { initialProfile } from '../data/mockData';
+
+// ==================== 路径-练习同步阈值 ====================
+/** 模块得分达到此阈值时，路径节点自动标记为已完成 */
+export const COMPLETION_THRESHOLD = 80;
 
 // ==================== 题库注册表 ====================
 interface QuestionBankData {
@@ -27,7 +34,7 @@ interface QuestionBankData {
 }
 
 const bankRegistry = new Map<string, QuestionBankData>();
-[pythonBank, jsBank, dsBank, sqlBank, javaBank, goBank, csharpBank, rustBank, devopsBank].forEach(bank => {
+[pythonBank, jsBank, dsBank, sqlBank, javaBank, goBank, csharpBank, rustBank, devopsBank, networksBank, linuxBank, mlBank].forEach(bank => {
   bankRegistry.set(bank.id, bank as QuestionBankData);
 });
 
@@ -145,6 +152,21 @@ const TAG_TO_DIMENSION: Record<string, string> = {
   docker: 'knowledgeBase', dockerfile: 'knowledgeBase', 'docker-compose': 'knowledgeBase',
   kubernetes: 'knowledgeBase', kubectl: 'knowledgeBase', 'k8s-pod': 'knowledgeBase',
   cicd: 'knowledgeBase', monitoring: 'knowledgeBase', prometheus: 'knowledgeBase',
+  // 计算机网络
+  osi: 'knowledgeBase', tcpip: 'knowledgeBase', encapsulation: 'knowledgeBase',
+  https: 'knowledgeBase', rest: 'knowledgeBase', cookie: 'knowledgeBase',
+  handshake: 'knowledgeBase', reliability: 'knowledgeBase', udp: 'knowledgeBase',
+  dns: 'knowledgeBase', cdn: 'knowledgeBase', security: 'knowledgeBase',
+  // Linux 基础
+  'linux-file': 'knowledgeBase', directory: 'knowledgeBase', 'file-ops': 'knowledgeBase',
+  'linux-user': 'knowledgeBase', permission: 'knowledgeBase', chmod: 'knowledgeBase',
+  sudo: 'knowledgeBase', bash: 'knowledgeBase', 'shell-script': 'knowledgeBase',
+  'linux-process': 'knowledgeBase', systemd: 'knowledgeBase', log: 'knowledgeBase',
+  // 机器学习
+  supervised: 'knowledgeBase', unsupervised: 'knowledgeBase', regression: 'knowledgeBase',
+  classification: 'knowledgeBase', clustering: 'knowledgeBase', 'dim-reduction': 'knowledgeBase',
+  evaluation: 'knowledgeBase', metrics: 'knowledgeBase', 'cross-validation': 'knowledgeBase',
+  scaling: 'knowledgeBase', 'feature-engineering': 'knowledgeBase', tuning: 'knowledgeBase',
   // 通用
   errorProne: 'errorProne',
   studyHabit: 'studyHabit',
