@@ -16,6 +16,9 @@ from . import theme
 from pptx.oxml.ns import qn
 from lxml import etree
 
+from pathlib import Path
+PPT_ROOT = Path(__file__).resolve().parent.parent
+
 
 def set_run_font(run, role: str = "body"):
     """
@@ -37,6 +40,41 @@ def set_run_font(run, role: str = "body"):
         rPr.remove(ea)
     ea = etree.SubElement(rPr, qn('a:ea'))
     ea.set('typeface', primary)
+
+
+def add_crest(slide):
+    """
+    在顶部条右侧贴校徽图（图片1.jpg）。
+    图片缺失时降级为白底矩形 + "校徽"文字。
+    """
+    try:
+        crest_path = PPT_ROOT / "assets" / "图片1.jpg"
+        if not crest_path.exists():
+            raise FileNotFoundError(f"crest image not found: {crest_path}")
+        slide.shapes.add_picture(
+            str(crest_path),
+            left=theme.SLIDE_WIDTH - theme.CREST_MARGIN_R - theme.CREST_WIDTH,
+            top=theme.CREST_MARGIN_T,
+            width=theme.CREST_WIDTH,
+            height=theme.CREST_HEIGHT,
+        )
+    except Exception:
+        # 降级方案
+        add_rect(
+            slide,
+            left=theme.SLIDE_WIDTH - theme.CREST_MARGIN_R - theme.CREST_WIDTH,
+            top=theme.CREST_MARGIN_T,
+            width=theme.CREST_WIDTH, height=theme.CREST_HEIGHT,
+            fill=theme.WHITE,
+        )
+        add_textbox(
+            slide,
+            left=theme.SLIDE_WIDTH - theme.CREST_MARGIN_R - theme.CREST_WIDTH,
+            top=theme.CREST_MARGIN_T + Pt(4),
+            width=theme.CREST_WIDTH, height=Pt(16),
+            text="校徽", font_size=9, color=theme.PRIMARY_DEEP,
+            align=PP_ALIGN.CENTER, bold=True,
+        )
 
 
 def hex_to_rgb(hex_str: str) -> RGBColor:
