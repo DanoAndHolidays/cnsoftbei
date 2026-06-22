@@ -51,8 +51,8 @@ def build(prs):
     add_textbox(slide, LEFT_X, Pt(390), LEFT_W, Pt(24),
     text="状态机 & 关键设计", font_size=16, bold=True, color=theme.ACCENT_RED)
     add_card(slide, LEFT_X, Pt(420), LEFT_W, Pt(230),
-    fill=theme.BG_PAPER, border="#722ED1", border_width=1.0)
-    add_color_block(slide, LEFT_X, Pt(420), Pt(6), Pt(230), "#722ED1")
+    fill=theme.BG_PAPER, border=theme.ACCENT_RED, border_width=1.0)
+    add_color_block(slide, LEFT_X, Pt(420), Pt(6), Pt(230), theme.ACCENT_RED)
     add_textbox(
     slide, LEFT_X + Pt(20), Pt(435), LEFT_W - Pt(32), Pt(205),
     text="planner 拆任务 派发给 6 个 worker 并行\n\n"
@@ -93,8 +93,8 @@ Assessment ───────────── Tutor Agent ─────�
 
  # ---- 底部 callout
     add_card(slide, Pt(60), Pt(660), Pt(1160), Pt(40),
-    fill=theme.PRIMARY_LIGHT, border="#722ED1", border_width=1.0)
-    add_color_block(slide, Pt(60), Pt(660), Pt(6), Pt(40), "#722ED1")
+    fill=theme.PRIMARY_LIGHT, border=theme.ACCENT_RED, border_width=1.0)
+    add_color_block(slide, Pt(60), Pt(660), Pt(6), Pt(40), theme.ACCENT_RED)
     add_textbox(slide, Pt(80), Pt(668), Pt(1120), Pt(24),
     text="关键设计：智能体之间解耦（仅通过事件总线通信）· ResourceGenerator 在 Scheduler 之上封装，代码减少 40%",
     font_size=13, bold=True, color=theme.PRIMARY, anchor=MSO_ANCHOR.MIDDLE)

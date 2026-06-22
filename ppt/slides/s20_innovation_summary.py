@@ -21,7 +21,7 @@ def build(prs):
         slide,
         "创新价值沉淀与未来演进方向",
         subtitle="架构 / 数据 / 交互 / 工程 4 维度 5 项创新 + 3 大未来方向",
-        accent_color="#13C2C2",
+        accent_color=theme.PRIMARY_DEEP,
     )
 
     # ---- 上半：5 项核心创新（横排 5 列）
@@ -70,7 +70,7 @@ def build(prs):
     # ---- 下半：3 大未来方向
     add_textbox(slide, Pt(60), Pt(390), Pt(1080), Pt(28),
                 text="3 大未来演进方向",
-                font_size=17, bold=True, color="#FA8C16",
+                font_size=17, bold=True, color=theme.PRIMARY,
                 font_name=theme.FONT_TITLE)
 
     futures = [

@@ -30,9 +30,9 @@ def build(prs):
         ("表现层 (Presentation)",
          "React 19 + TypeScript + Vite + Ant Design 6", theme.PRIMARY),
         ("API 网关 (Gateway)",
-         "Vite dev proxy: /anthropic  api.minimaxi.com", "#9254DE"),
+         "Vite dev proxy: /anthropic  api.minimaxi.com", theme.ACCENT_RED),
         ("多智能体框架 (Multi-Agent)",
-         "MultiAgentScheduler · 5 类智能体 · 事件总线", "#FA8C16"),
+         "MultiAgentScheduler · 5 类智能体 · 事件总线", theme.ACCENT),
         ("数据层 (Data)",
          "localStorage · 题库 JSON（12 库 576 题）", theme.SUCCESS),
     ]

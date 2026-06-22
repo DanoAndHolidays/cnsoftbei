@@ -61,7 +61,7 @@ def build(prs):
     pains = [
         ("资源繁杂", "题库、视频、文档分散", theme.ERROR),
         ("节奏统一", "全班同一进度，难个性化", theme.WARNING),
-        ("反馈滞后", "错题几天后才讲评", "#722ED1"),
+        ("反馈滞后", "错题几天后才讲评", theme.ACCENT_RED),
     ]
     pain_top = col_top + Pt(50)
     for i, (title, desc, color) in enumerate(pains):
@@ -94,7 +94,7 @@ def build(prs):
     for i, (title, desc) in enumerate(diffs):
         y = diff_top + i * Pt(70)
         # 左侧色块
-        add_rect(slide, right_x, y + Pt(4), Pt(8), Pt(48), fill="#FA8C16")
+        add_rect(slide, right_x, y + Pt(4), Pt(8), Pt(48), fill=theme.ACCENT)
         add_textbox(slide, right_x + Pt(20), y, right_w - Pt(20), Pt(26),
                     text=title, font_size=15, bold=True,
                     color=theme.PRIMARY)

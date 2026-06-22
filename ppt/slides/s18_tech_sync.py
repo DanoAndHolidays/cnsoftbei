@@ -42,9 +42,9 @@ def build(prs):
     node_w = Pt(200)
     positions = [
         (Pt(60), "Path 页", theme.PRIMARY, "写入 activeStructuredPath"),
-        (Pt(320), "localStorage", "#FA8C16", "单一数据源"),
+        (Pt(320), "localStorage", theme.ACCENT, "单一数据源"),
         (Pt(580), "Practice 页", theme.SUCCESS, "读取 + 过滤模块"),
-        (Pt(840), "Assessment 页", "#722ED1", "读取 + 进度展示"),
+        (Pt(840), "Assessment 页", theme.ACCENT_RED, "读取 + 进度展示"),
     ]
 
     y_arrow = nodes_y + node_h // 2
@@ -102,8 +102,8 @@ const THRESHOLD = 0.8 // 80% 完成度阈值"""
     # ---- 下半右：3 个关键事实卡
     facts = [
         ("12 题库 × 48 题", "576 道题全预写，AI 只判分不生成", theme.PRIMARY),
-        ("80% 阈值", "模块完成度达 80% 自动标记为 done", "#FA8C16"),
-        ("customEvent", "解耦通信，跨页面 / 跨组件零依赖", "#722ED1"),
+        ("80% 阈值", "模块完成度达 80% 自动标记为 done", theme.ACCENT),
+        ("customEvent", "解耦通信，跨页面 / 跨组件零依赖", theme.ACCENT_RED),
     ]
     card_h = Pt(95)
     for i, (title, desc, color) in enumerate(facts):

@@ -73,8 +73,8 @@ done event ── onComplete() ── 显示 完成
  # ---- 右下：3 个特性卡
     cards = [
     ("打字机效果", "逐 chunk 调用 setState，每帧渲染新字符\n视觉上像 ChatGPT 一样逐字出现。", theme.PRIMARY),
-    ("思考过程可折叠", "AI 输出的 <thinking> 块折叠在 \"思考过程\" 标签下\n默认折叠，用户点击展开看推理细节。", "#FA8C16"),
-    ("AbortSignal 取消","流式中点击取消 触发 controller.abort()\nfetch 立即中断，UI 显示 \"已取消\" 状态。", "#722ED1"),
+    ("思考过程可折叠", "AI 输出的 <thinking> 块折叠在 \"思考过程\" 标签下\n默认折叠，用户点击展开看推理细节。", theme.ACCENT),
+    ("AbortSignal 取消","流式中点击取消 触发 controller.abort()\nfetch 立即中断，UI 显示 \"已取消\" 状态。", theme.ACCENT_RED),
     ]
     card_h = Pt(80)
     for i, (title, body, color) in enumerate(cards):

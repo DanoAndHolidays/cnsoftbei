@@ -20,7 +20,7 @@ def build(prs):
         slide,
         "系统评估与核心性能指标",
         subtitle="576 题库 + 92% 判分一致率 + <2s 首字延迟 + 0 严重缺陷",
-        accent_color="#13C2C2",
+        accent_color=theme.PRIMARY_DEEP,
     )
 
     # 上半：4 个数据卡
