@@ -5,6 +5,10 @@ import { initialProfile, defaultChatMessages, quizQuestionBank, quizSelectionCou
 import { streamChatCompletion } from '../services/api';
 import type { StudentProfile, ProfileDimension } from '../types';
 import { usePageCache } from '../context/PageCacheContext';
+import { buildLearningProfileSnapshot, saveProfileAndNotify } from '../services/learningOrchestrator';
+import { buildProfileAnalysisPrompt, buildProfileReplyPrompt, buildQuizAnalysisPrompt } from '../services/promptBuilder';
+import { userKey } from '../services/storage';
+import { useAuth } from '../context/AuthContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -47,8 +51,23 @@ function selectQuizQuestions(): QuizQuestion[] {
 
 const Profile: React.FC = () => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
+  const { currentUser } = useAuth();
 
-  const [profile, setProfile] = useState<StudentProfile>(() => cachedState?.profile ?? initialProfile);
+  // 加载画像：localStorage > 缓存 > 当前用户信息兜底
+  const loadInitialProfile = (): StudentProfile => {
+    try {
+      const saved = localStorage.getItem(userKey('studentProfile'));
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    if (cachedState?.profile) return cachedState.profile;
+    return {
+      ...initialProfile,
+      id: currentUser?.id || initialProfile.id,
+      name: currentUser?.name || initialProfile.name,
+    };
+  };
+
+  const [profile, setProfile] = useState<StudentProfile>(loadInitialProfile);
   const [isModalOpen, setIsModalOpen] = useState(() => cachedState?.isModalOpen ?? false);
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string; isStreaming?: boolean }[]>(() => cachedState?.chatMessages ?? defaultChatMessages);
   const [inputValue, setInputValue] = useState(() => cachedState?.inputValue ?? '');
@@ -65,9 +84,15 @@ const Profile: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [form] = Form.useForm();
 
-  // 缓存状态变化
+  // 缓存状态变化（使用序列化比较避免 selectedQuestions 对象数组导致频繁写入）
+  const prevStateRef = useRef<string>('');
   useEffect(() => {
-    saveState({ profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions });
+    const stateObj = { profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions };
+    const serialized = JSON.stringify(stateObj);
+    if (serialized !== prevStateRef.current) {
+      prevStateRef.current = serialized;
+      saveState(stateObj);
+    }
   }, [profile, isModalOpen, chatMessages, inputValue, isAnalyzing, currentReply, isQuizModalOpen, quizStep, quizAnswers, isQuizAnalyzing, selectedQuestions, saveState]);
 
   // 自动滚动到底部
@@ -82,34 +107,10 @@ const Profile: React.FC = () => {
 
     try {
       // 构建分析请求
+      const { system, user } = buildProfileAnalysisPrompt(profile, userMessage);
       const messages = [
-        { role: 'system' as const, content: `你是画像构建智能体，专门分析学生的学习特征。
-当前学生画像：
-姓名：${profile.name}
-专业：${profile.major}
-年级：${profile.grade}
-
-已有维度：
-${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n')}
-
-请分析用户的下一条输入，提取或更新以下维度的信息：
-1. 知识基础 - 用户当前的技术水平
-2. 认知风格 - 用户喜欢的学习方式（视觉/听觉/动手等）
-3. 易错点偏好 - 用户经常遇到困难的地方
-4. 学习节奏 - 用户学习的快慢和习惯
-5. 兴趣方向 - 用户感兴趣的技术领域
-6. 学习习惯 - 用户的学习方法和习惯
-
-请用JSON格式输出分析结果，格式如下（只输出JSON，不要其他内容）：
-{
-  "knowledgeBase": "分析出的知识基础描述",
-  "cognitiveStyle": "分析出的认知风格",
-  "errorProne": "分析出的易错点",
-  "learningPace": "分析出的学习节奏",
-  "interestDirection": "分析出的兴趣方向",
-  "studyHabit": "分析出的学习习惯"
-}` },
-        { role: 'user' as const, content: userMessage },
+        { role: 'system' as const, content: system },
+        { role: 'user' as const, content: user },
       ];
 
       let fullResponse = '';
@@ -145,8 +146,8 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
         hasAnalysis = true;
 
         // 更新画像维度
-        setProfile(prev => {
-          const updatedDimensions = [...prev.dimensions];
+        const nextProfile: StudentProfile = (() => {
+          const updatedDimensions = [...profile.dimensions];
 
           const dimensionKeys: (keyof typeof analysis)[] = [
             'knowledgeBase', 'cognitiveStyle', 'errorProne',
@@ -173,22 +174,30 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
             }
           });
 
-          return {
-            ...prev,
+          const updatedProfile = {
+            ...profile,
             dimensions: updatedDimensions,
             updatedAt: new Date().toISOString(),
+            learningProfile: buildLearningProfileSnapshot({
+              ...profile,
+              dimensions: updatedDimensions,
+              updatedAt: new Date().toISOString(),
+            }, '对话'),
           };
-        });
+          setProfile(updatedProfile);
+          return updatedProfile;
+        })();
 
-        localStorage.setItem('studentProfile', JSON.stringify(profile));
+        saveProfileAndNotify(nextProfile);
 
       } catch (parseError) {
         console.error('Failed to parse analysis result:', parseError);
+        message.warning('AI 返回格式异常，部分维度可能未更新，请重试描述');
       }
 
       // 生成简短的智能体回复
       const replyMessages = [
-        { role: 'system' as const, content: `你是画像构建智能体，友好、专业地回应用户的输入。根据刚才的分析结果，给出一个简短（50字以内）的肯定性回复，并可以追问一个关于学习的问题。用户输入是："${userMessage}"` },
+        { role: 'system' as const, content: buildProfileReplyPrompt(userMessage) },
         { role: 'assistant' as const, content: '' },
       ];
 
@@ -259,29 +268,7 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
       const messages = [
         {
           role: 'system' as const,
-          content: `你是画像构建智能体，专门分析学生的学习特征。请根据用户的测试答案，从以下6个维度分析其学习特征：
-
-1. 知识基础 - 根据知识题的答题情况评估用户当前技术水平
-2. 认知风格 - 根据用户偏好的学习方式判断（视觉型/听觉型/动手型/阅读型）
-3. 易错点偏好 - 用户经常遇到困难的地方
-4. 学习节奏 - 用户学习的快慢和深度偏好
-5. 兴趣方向 - 用户感兴趣的技术领域
-6. 学习习惯 - 用户的学习方法和习惯
-
-请用JSON格式输出分析结果（只输出JSON，不要其他内容）：
-{
-  "knowledgeBase": "一句话描述知识基础水平",
-  "cognitiveStyle": "认知风格描述",
-  "errorProne": "易错点和薄弱环节描述",
-  "learningPace": "学习节奏描述",
-  "interestDirection": "兴趣方向描述",
-  "studyHabit": "学习习惯描述"
-}
-
-注意：
-- 知识基础维度要根据知识题的正确情况给出客观评价（"扎实"/"一般"/"有待加强"等）
-- 每个维度的value应该是完整的一句话描述，不少于10个字
-- 根据用户的自评选项推断其特点，不要简单复述选项文字`,
+          content: buildQuizAnalysisPrompt(),
         },
         {
           role: 'user' as const,
@@ -335,8 +322,8 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
       'learningPace', 'interestDirection', 'studyHabit',
     ];
 
-    setProfile(prev => {
-      const updatedDimensions = [...prev.dimensions];
+    const nextProfile: StudentProfile = (() => {
+      const updatedDimensions = [...profile.dimensions];
 
       dimensionKeys.forEach((key, index) => {
         if (analysis[key] && updatedDimensions[index]) {
@@ -356,14 +343,21 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
         }
       });
 
-      return {
-        ...prev,
+      const updatedProfile = {
+        ...profile,
         dimensions: updatedDimensions,
         updatedAt: new Date().toISOString(),
+        learningProfile: buildLearningProfileSnapshot({
+          ...profile,
+          dimensions: updatedDimensions,
+          updatedAt: new Date().toISOString(),
+        }, '对话'),
       };
-    });
+      setProfile(updatedProfile);
+      return updatedProfile;
+    })();
 
-    localStorage.setItem('studentProfile', JSON.stringify(profile));
+    localStorage.setItem(userKey('studentProfile'), JSON.stringify(nextProfile));
     message.success('测试完成！画像已根据您的答题结果更新');
   };
 
@@ -460,7 +454,7 @@ ${profile.dimensions.map(d => `- ${d.label}: ${d.value} (${d.level})`).join('\n'
   };
 
   const loadSavedProfile = () => {
-    const saved = localStorage.getItem('studentProfile');
+    const saved = localStorage.getItem(userKey('studentProfile'));
     if (saved) {
       try {
         const parsed = JSON.parse(saved);

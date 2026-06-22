@@ -6,19 +6,16 @@ import type {
   TagScore,
   PracticeState,
 } from '../types';
-import pythonBank from '../data/pythonBasics.json';
-import jsBank from '../data/javascriptWeb.json';
-import dsBank from '../data/dataStructures.json';
-import sqlBank from '../data/sqlDatabase.json';
-import javaBank from '../data/javaBasics.json';
-import goBank from '../data/goBasics.json';
-import csharpBank from '../data/csharpBasics.json';
-import rustBank from '../data/rustBasics.json';
-import devopsBank from '../data/devopsBasics.json';
-import networksBank from '../data/computerNetworks.json';
-import linuxBank from '../data/linuxFundamentals.json';
-import mlBank from '../data/machineLearning.json';
+import { questions, learningPlan, tagToChinese } from '../data/pythonQuestionBank';
 import { initialProfile } from '../data/mockData';
+import {
+  appendLearningCycleLog,
+  buildLearningEvaluationReport,
+  syncLearningProfileFromPractice,
+  saveProfileAndNotify,
+  broadcastEvent,
+  SYSTEM_EVENTS,
+} from './learningOrchestrator';
 
 // ==================== 路径-练习同步阈值 ====================
 /** 模块得分达到此阈值时，路径节点自动标记为已完成 */
@@ -170,10 +167,22 @@ const TAG_TO_DIMENSION: Record<string, string> = {
   // 通用
   errorProne: 'errorProne',
   studyHabit: 'studyHabit',
+  // 数据库知识
+  '数据库基础': 'knowledgeBase',
+  'SQL基础': 'knowledgeBase',
+  '数据库约束': 'knowledgeBase',
+  '数据库索引': 'knowledgeBase',
+  '数据库事务': 'knowledgeBase',
+  '多表查询': 'knowledgeBase',
+  '数据库设计': 'knowledgeBase',
+  '数据库运维': 'knowledgeBase',
+  '数据库类型': 'knowledgeBase',
 };
 
 // ==================== 存储键名 ====================
-const PRACTICE_STATE_KEY = 'practiceState';
+import { userKey } from './storage';
+
+export { learningPlan, questions, tagToChinese };
 
 // ==================== 客观题判分 ====================
 export function checkAnswer(question: PracticeQuestion, userAnswer: string): boolean {
@@ -183,6 +192,10 @@ export function checkAnswer(question: PracticeQuestion, userAnswer: string): boo
   if (question.type === 'truefalse') {
     const expected = question.trueFalseAnswer ? 'true' : 'false';
     return userAnswer === expected;
+  }
+  if (question.type === 'fill') {
+    const expected = (question.fillAnswer || '').trim().toLowerCase();
+    return userAnswer.trim().toLowerCase() === expected;
   }
   return false;
 }
@@ -230,13 +243,125 @@ export async function gradeByAI(
       },
     );
 
-    const scoreMatch = fullResponse.match(/\d+/);
-    if (scoreMatch) {
-      return Math.min(100, Math.max(0, parseInt(scoreMatch[0], 10)));
+    // 提取数字分数 — 取所有匹配中的最高分（AI 常在解释中放低分，最终结论给合理分）
+    const allScores = fullResponse.match(/\d+/g);
+    if (allScores && allScores.length > 0) {
+      const clampedScores = allScores
+        .map(s => parseInt(s, 10))
+        .map(n => Math.min(100, Math.max(0, n)));
+      if (clampedScores.length > 0) return Math.max(...clampedScores);
     }
     return 0;
   }
   return 0;
+}
+
+// ==================== 答案相似度计算（Jaccard） ====================
+function jaccardSimilarity(a: string, b: string): number {
+  const tokenize = (s: string) => {
+    // 按中文字符和英文单词分词
+    const tokens = s.match(/[一-鿿]|[a-zA-Z]+/g) || [];
+    return new Set(tokens.map(t => t.toLowerCase()));
+  };
+  const setA = tokenize(a);
+  const setB = tokenize(b);
+  if (setA.size === 0 && setB.size === 0) return 1;
+  let intersection = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersection++;
+  }
+  return intersection / (setA.size + setB.size - intersection);
+}
+
+// ==================== AI 判分合理性断言 ====================
+export function assertScoreReasonable(
+  score: number,
+  userAnswer: string,
+  sampleAnswer: string
+): { reasonable: boolean; reason?: string } {
+  // 两者都为空 — 无法比较，视为合理
+  if (!userAnswer.trim() && !sampleAnswer.trim()) {
+    return { reasonable: true };
+  }
+
+  const similarity = jaccardSimilarity(userAnswer, sampleAnswer);
+
+  // 答案高度相似但分数过低
+  if (similarity > 0.6 && score < 40) {
+    return {
+      reasonable: false,
+      reason: `答案相似度 ${(similarity * 100).toFixed(0)}% 但分数仅 ${score}，AI 判分可能偏低`,
+    };
+  }
+
+  // 答案差异很大但分数过高
+  if (similarity < 0.2 && score > 80) {
+    return {
+      reasonable: false,
+      reason: `答案相似度仅 ${(similarity * 100).toFixed(0)}% 但分数 ${score}，AI 判分可能偏高`,
+    };
+  }
+
+  // 用户答案为空或极短（排除空答案得 0 分的正常情况），分数应很低
+  if (userAnswer.trim().length > 0 && userAnswer.trim().length < 5 && score > 30) {
+    return {
+      reasonable: false,
+      reason: `答案仅 ${userAnswer.trim().length} 字但分数 ${score}，AI 判分可能偏高`,
+    };
+  }
+
+  return { reasonable: true };
+}
+
+// ==================== AI 判分一致性校验（并发 3 次取中位数） ====================
+export async function gradeByAIVerified(
+  question: PracticeQuestion,
+  userAnswer: string,
+): Promise<{ score: number; confidence: 'high' | 'low'; details: number[] }> {
+  if (question.type !== 'short') {
+    return { score: 0, confidence: 'high', details: [] };
+  }
+
+  // 并发调用 3 次
+  const results = await Promise.all(
+    Array.from({ length: 3 }, () => gradeByAI(question, userAnswer))
+  );
+
+  // 取中位数
+  const sorted = [...results].sort((a, b) => a - b);
+  const median = sorted[1];
+
+  // 计算偏差
+  const maxDeviation = Math.max(
+    Math.abs(sorted[0] - median),
+    Math.abs(sorted[2] - median)
+  );
+
+  // 合理性断言
+  const reasonableness = assertScoreReasonable(median, userAnswer, question.sampleAnswer || '');
+
+  const confidence: 'high' | 'low' =
+    maxDeviation > 20 || !reasonableness.reasonable ? 'low' : 'high';
+
+  // 第一次结果不合理时自动重试一次
+  if (confidence === 'low' && reasonableness.reasonable === false) {
+    const retryResults = await Promise.all(
+      Array.from({ length: 3 }, () => gradeByAI(question, userAnswer))
+    );
+    const retrySorted = [...retryResults].sort((a, b) => a - b);
+    const retryMedian = retrySorted[1];
+    const retryReasonable = assertScoreReasonable(retryMedian, userAnswer, question.sampleAnswer || '');
+
+    if (retryReasonable.reasonable) {
+      return {
+        score: retryMedian,
+        confidence: 'high',
+        details: [...results, ...retryResults],
+      };
+    }
+  }
+
+  return { score: median, confidence, details: results };
 }
 
 // ==================== 计算模块进度 ====================
@@ -261,8 +386,10 @@ export function calculateModuleProgress(
   });
   const shortAnswerTotalScore = shortResults.reduce((sum, r) => sum + (r.aiScore || 0), 0);
 
-  const objectiveScore = totalQuestions > 0
-    ? (correctCount / moduleQuestions.filter(q => q.type !== 'short').length) * 50
+  // 计算总分：客观题每题 50%权重，简答题每题 50%权重
+  const objectiveCount = moduleQuestions.filter(q => q.type !== 'short').length;
+  const objectiveScore = objectiveCount > 0
+    ? (correctCount / objectiveCount) * 50
     : 0;
   const shortScore = totalQuestions > 0
     ? (shortAnswerTotalScore / 100) * 50
@@ -291,15 +418,26 @@ export function calculateTagScores(
   const tagMap = new Map<string, { total: number; correct: number }>();
 
   for (const result of results) {
-    if (result.isCorrect === null) continue;
     const question = allQuestions.find(q => q.id === result.questionId);
     if (!question) continue;
+
+    // 加权正确贡献：客观题二值(0/1)，AI 判分题按 aiScore/100 加权
+    let weightedCorrect: number;
+    if (result.isCorrect === true) {
+      weightedCorrect = 1;
+    } else if (result.isCorrect === false) {
+      weightedCorrect = 0;
+    } else if (result.aiScore !== undefined) {
+      weightedCorrect = result.aiScore / 100;
+    } else {
+      continue; // 未评分的简答题，跳过不参与计分
+    }
 
     for (const tag of question.tags) {
       if (!tagMap.has(tag)) tagMap.set(tag, { total: 0, correct: 0 });
       const entry = tagMap.get(tag)!;
       entry.total++;
-      if (result.isCorrect) entry.correct++;
+      entry.correct += weightedCorrect;
     }
   }
 
@@ -315,8 +453,8 @@ export function calculateTagScores(
 export function updateProfileByTagScores(tagScores: TagScore[]) {
   if (tagScores.length === 0) return;
 
-  const savedProfile = localStorage.getItem('studentProfile');
-  let profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
+  const savedProfile = localStorage.getItem(userKey('studentProfile'));
+  const profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
 
   const dimensionScores: Record<string, { scores: number[]; count: number }> = {};
 
@@ -352,14 +490,16 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
     };
   });
 
-  profile.updatedAt = new Date().toISOString();
-  localStorage.setItem('studentProfile', JSON.stringify(profile));
-  return profile;
+  const syncedProfile = syncLearningProfileFromPractice(profile, tagScores);
+  syncedProfile.dimensions = profile.dimensions;
+  syncedProfile.updatedAt = new Date().toISOString();
+  saveProfileAndNotify(syncedProfile);
+  return syncedProfile;
 }
 
 // ==================== 持久化练习状态 ====================
 export function loadPracticeState(): PracticeState | null {
-  const saved = localStorage.getItem(PRACTICE_STATE_KEY);
+  const saved = localStorage.getItem(userKey('practiceState'));
   if (!saved) return null;
   try {
     return JSON.parse(saved);
@@ -370,7 +510,7 @@ export function loadPracticeState(): PracticeState | null {
 
 export function savePracticeState(state: PracticeState): void {
   state.updatedAt = new Date().toISOString();
-  localStorage.setItem(PRACTICE_STATE_KEY, JSON.stringify(state));
+  localStorage.setItem(userKey('practiceState'), JSON.stringify(state));
 }
 
 export function getOrCreatePracticeState(): PracticeState {
@@ -400,7 +540,7 @@ export function submitAnswer(
   aiScore?: number
 ): PracticeState {
   const state = getOrCreatePracticeState();
-  const allQuestions = getAllQuestions();
+  const previousProfile = localStorage.getItem(userKey('studentProfile'));
 
   const existingIdx = state.results.findIndex(r => r.questionId === questionId);
   const question = allQuestions.find(q => q.id === questionId);
@@ -429,21 +569,44 @@ export function submitAnswer(
 
   state.tagScores = calculateTagScores(state.results, allQuestions);
 
-  savePracticeState(state);
-  window.dispatchEvent(new CustomEvent('practiceStateUpdated'));
+  const updatedProfile = updateProfileByTagScores(state.tagScores);
+  if (updatedProfile?.learningProfile) {
+    const question = questions.find(item => item.id === questionId);
+    const moduleMeta = learningPlan.modules.find(module => module.id === (question?.moduleId ?? ''));
+    if (moduleMeta) {
+      const stage = {
+        stageId: moduleMeta.id,
+        stageName: moduleMeta.name,
+        stageGoal: moduleMeta.description,
+        coreKnowledgePoints: [...moduleMeta.tags],
+        estimatedHours: Math.max(4, moduleMeta.questionCount),
+        unlockCondition: {
+          previousStageMasteryRate: 70,
+        },
+      };
+      const evaluationReport = buildLearningEvaluationReport(
+        updatedProfile.learningProfile,
+        stage,
+        state,
+      );
 
-  // 通知 Path 页同步节点进度
-  const moduleProgress = state.moduleProgress.find(p => p.moduleId === moduleId);
-  if (moduleProgress) {
-    window.dispatchEvent(new CustomEvent('moduleProgressUpdated', {
-      detail: {
-        moduleId,
-        bankId: getActiveBank(),
-        score: moduleProgress.score,
-      },
-    }));
+      state.lastEvaluationReport = evaluationReport;
+      state.cycleLogs = appendLearningCycleLog(state.cycleLogs, {
+        source: '练习',
+        before: {
+          profile: previousProfile ? JSON.parse(previousProfile).learningProfile ?? null : null,
+        },
+        after: {
+          profile: updatedProfile.learningProfile,
+          evaluation: evaluationReport,
+        },
+        notes: evaluationReport.profileUpdateInstructions,
+      });
+    }
   }
 
+  savePracticeState(state);
+  broadcastEvent(SYSTEM_EVENTS.PRACTICE_UPDATED, { state });
   return state;
 }
 

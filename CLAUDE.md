@@ -59,11 +59,12 @@ App.tsx 使用 `useState` 管理当前页面 key，通过 `switch` 语句渲染�
 
 ### 练习中心（`src/pages/Practice.tsx`）
 
-题库数据与组件完全解耦，存储在 `src/data/practiceQuestionBank.json`（54 道 Python 题目，4 个模块，判断/选择/简答三种题型）。`src/services/practiceGrader.ts` 负责：
+题库数据存储在 `src/data/pythonQuestionBank.ts`（110 道 Python 题目，core/extension 分类，统一归一化标签），`src/data/javaQuestionBank.ts` 为 Java 题库（待导入）。`src/services/practiceGrader.ts` 负责：
 - 客观题自动判分
 - 简答题 AI 判分（调用 `streamChatCompletion`）
 - 题目按 Tag 关联画像维度，做题后自动更新画像
 - 结果写入 `practiceState` localStorage，`Assessment` 页面通过 `practiceStateUpdated` 事件跨页面同步刷新
+- 题库按标签搜索 → 按完成状态过滤 → 输出题目；错题集按阶段分类
 
 ### 智能辅导（`src/pages/Tutor.tsx`）
 
@@ -76,6 +77,19 @@ App.tsx 使用 `useState` 管理当前页面 key，通过 `switch` 语句渲染�
 - **请求取消**：`streamChatCompletion` 支持 `AbortSignal`，生成中红色取消按钮
 - **追问链**：`QAItem` 新增 `parentId`/`followUpIds`，历史项有追问按钮，追问缩进子条目展示，详情弹窗展示完整追问链
 - **追问流程 v2**：生成回答下方不显式展示追问按钮，用户自由输入，AI 根据上下文自动判断是否追问；点击历史追问不清除当前回答；追问回答顶部显示关联的原始问题卡片
+
+### 中央调度协议
+
+`src/services/learningOrchestrator.ts` 定义学习智能体的统一 JSON 协议，目标是把「学习画像 - 学习路径 - 练习中心 - 效果评估」收敛成可闭环执行的单一控制面。
+
+核心约定：
+- 学习画像是唯一核心数据源，结构化输出包含用户基础信息、6 维标签、更新时间和来源标记。
+- 学习路径必须由画像驱动，阶段固定为「入门→基础→进阶→实战」，并输出阶段目标、核心知识点、预计时长和解锁条件。
+- 练习中心只允许按当前阶段核心知识点筛题；题库不足时必须启用关联知识点、重复强化和异常报告兜底。
+- 效果评估必须回写画像与练习状态，生成阶段掌握度、画像更新建议、路径优化建议和练习优化建议。
+- 每次闭环迭代都要记录 cycle log，保留调整前后的画像、路径、题目筛选规则和评估结论。
+
+练习提交已在 `src/services/practiceGrader.ts` 接入回流逻辑，画像保存点会同步生成结构化 snapshot，保证后续路径和评估模块读取到同一份 JSON。
 
 ## 项目文档
 
