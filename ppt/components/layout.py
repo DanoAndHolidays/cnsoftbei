@@ -182,6 +182,10 @@ def add_textbox(slide, left, top, width, height, text, *,
     run.font.size = Pt(font_size)
     run.font.bold = bold
     run.font.color.rgb = hex_to_rgb(color)
+    if font_size >= 24:
+        set_run_font(run, "serif")
+    else:
+        set_run_font(run, "body")
     return tb
 
 
@@ -334,15 +338,14 @@ def build_section_divider(prs, chapter_idx: int) -> int:
 
 def add_page_title(slide, title: str, subtitle: str = None,
                    top: int = Pt(70), *,
-                   accent_color=theme.TERRACOTTA, icon: str = ""):
+                   accent_color=theme.ACCENT, icon: str = ""):
     """
-    内容页的标准标题（莫兰迪极简版）：
-    - 衬线大标题（思源宋体）
-    - 60pt 极细陶土橙横线分隔
-    - 副标题用弱化灰
+    内容页标准标题（风格 C）：
+    - 金色短横线 + 深蓝衬线大标题
+    - 副标题用中灰
     返回正文起始 top。
     """
-    # 60pt 极细横线（章节色，替代原 4px 高条）
+    # 金色短横线
     add_rect(
         slide,
         left=theme.MARGIN_LR, top=top - Pt(2),
@@ -358,8 +361,8 @@ def add_page_title(slide, title: str, subtitle: str = None,
         text=title_text,
         font_size=theme.FONT_SIZES["page_title"],
         bold=True,
-        font_name=theme.FONT_TITLE,
-        color=theme.TEXT,
+        font_name=theme.FONT_SERIF,
+        color=theme.PRIMARY,
     )
     if subtitle:
         add_textbox(
