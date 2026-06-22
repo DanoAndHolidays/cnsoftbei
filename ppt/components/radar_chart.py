@@ -46,7 +46,7 @@ def render_radar(
     angles_closed = angles + angles[:1]
 
     fig, ax = plt.subplots(figsize=(5, 4.2), subplot_kw=dict(polar=True))
-    fig.patch.set_facecolor("white")
+    fig.patch.set_facecolor("#FFFFFF")
 
     # 描点
     ax.plot(angles_closed, values_closed, color=color, linewidth=2, linestyle="solid")
@@ -54,7 +54,7 @@ def render_radar(
 
     # 维度标签
     ax.set_xticks(angles)
-    ax.set_xticklabels(labels, fontsize=10, color=theme.PRIMARY_DARK)
+    ax.set_xticklabels(labels, fontsize=10, color=theme.PRIMARY)
 
     # 刻度
     ax.set_ylim(0, max_value)
@@ -63,11 +63,11 @@ def render_radar(
     ax.set_rlabel_position(90)
 
     # 网格
-    ax.grid(color="#E0E0E0", linewidth=0.5)
-    ax.spines["polar"].set_color("#E0E0E0")
+    ax.grid(color="#E5DDD0", linewidth=0.5)
+    ax.spines["polar"].set_color("#E5DDD0")
 
     if title:
-        plt.title(title, fontsize=13, color=theme.PRIMARY_DARK, pad=20)
+        plt.title(title, fontsize=13, color=theme.PRIMARY, pad=20)
 
     plt.tight_layout()
     Path(os.path.dirname(out_path)).mkdir(parents=True, exist_ok=True)
