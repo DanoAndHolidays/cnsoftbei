@@ -24,7 +24,8 @@ def add_textbox(slide, left, top, width, height, text, *,
                 font_size=14, bold=False, color=theme.TEXT,
                 font_name=theme.FONT_FAMILY, align=PP_ALIGN.LEFT,
                 anchor=MSO_ANCHOR.TOP, fill=None):
-    """通用文本框：文字 + 字号 + 颜色 + 可选底色"""
+    """通用文本框：文字 + 字号 + 颜色 + 可选底色。
+    默认正文用黑体；标题字号 ≥ 24 时自动切衬线（思源宋体）。"""
     tb = slide.shapes.add_textbox(left, top, width, height)
     if fill is not None:
         tb.fill.solid()
@@ -41,7 +42,11 @@ def add_textbox(slide, left, top, width, height, text, *,
     p.alignment = align
     run = p.add_run()
     run.text = text
-    run.font.name = font_name
+    # 大字号自动切衬线字体（标题感）
+    if font_name == theme.FONT_FAMILY and font_size >= 24:
+        run.font.name = theme.FONT_TITLE
+    else:
+        run.font.name = font_name
     run.font.size = Pt(font_size)
     run.font.bold = bold
     run.font.color.rgb = hex_to_rgb(color)
@@ -73,41 +78,33 @@ def apply_chrome(slide, chapter_idx: int, page_num: int):
     chapter = theme.CHAPTERS[chapter_idx - 1]
     chapter_color = chapter["color"]
 
-    # ---- 左上角页眉：第 X 章 · 章节名
+    # ---- 左上角页眉：第 X 章 · 章节名（极简：仅章节序号 + 名，无前缀）
     add_textbox(
         slide,
-        left=theme.MARGIN_LR, top=Pt(20),
+        left=theme.MARGIN_LR, top=Pt(24),
         width=Pt(360), height=theme.HEADER_HEIGHT,
-        text=f"学习智能体系统 · 第 {chapter_idx:02d} 章 {chapter['title']}",
+        text=f"0{chapter_idx}  {chapter['title']}",
         font_size=theme.FONT_SIZES["tiny"],
         color=theme.TEXT_SUBTLE,
     )
 
-    # ---- 右上角页眉：项目小标识
+    # ---- 右上角页眉：项目小标识（极简）
     add_textbox(
         slide,
-        left=theme.SLIDE_WIDTH - theme.MARGIN_LR - Pt(200), top=Pt(20),
-        width=Pt(200), height=theme.HEADER_HEIGHT,
+        left=theme.SLIDE_WIDTH - theme.MARGIN_LR - Pt(280), top=Pt(24),
+        width=Pt(280), height=theme.HEADER_HEIGHT,
         text=theme.COVER_INFO["contest"],
         font_size=theme.FONT_SIZES["tiny"],
         color=theme.TEXT_SUBTLE,
         align=PP_ALIGN.RIGHT,
     )
 
-    # ---- 左侧 4px 装饰竖条（章节色）
+    # ---- 左侧 2px 极细装饰竖条（章节色，极简）
     add_rect(
         slide,
         left=0, top=Pt(50),
-        width=Pt(4), height=theme.SLIDE_HEIGHT - Pt(100),
+        width=Pt(2), height=theme.SLIDE_HEIGHT - Pt(100),
         fill=chapter_color,
-    )
-
-    # ---- 左下角浅蓝水平细线
-    add_rect(
-        slide,
-        left=theme.MARGIN_LR, top=theme.SLIDE_HEIGHT - Pt(35),
-        width=Pt(120), height=Pt(1),
-        fill=theme.PRIMARY_LIGHT,
     )
 
     # ---- 右下角页码
@@ -124,7 +121,7 @@ def apply_chrome(slide, chapter_idx: int, page_num: int):
 
 def build_section_divider(prs, chapter_idx: int) -> int:
     """
-    生成章节首页（大号半透明数字 + 章节名 + 橙色分割线）。
+    生成章节首页（极简莫兰迪版：纯米白底 + 巨大衬线数字 + 章节名 + 细线）。
     返回该页的页码（用于后续 apply_chrome 调用）。
     """
     chapter = theme.CHAPTERS[chapter_idx - 1]
@@ -132,34 +129,45 @@ def build_section_divider(prs, chapter_idx: int) -> int:
     blank_layout = prs.slide_layouts[6]   # 空白版式
     slide = prs.slides.add_slide(blank_layout)
 
-    # ---- 大号半透明数字
-    add_textbox(
+    # ---- 米白主背景
+    add_rect(
         slide,
-        left=Pt(120), top=Pt(180),
-        width=Pt(800), height=Pt(420),
-        text=chapter["num"],
-        font_size=280,
-        bold=True,
-        color=theme.ACCENT_BG,
+        left=0, top=0,
+        width=theme.SLIDE_WIDTH, height=theme.SLIDE_HEIGHT,
+        fill=theme.BG_CREAM,
     )
 
-    # ---- 章节中文名
+    # ---- 巨大衬线数字（淡米色，几乎透明）
+    # TODO(Task 6): 替换为专用常量 theme.BG_DIVIDER_NUMBER = "#E8E4DA"（见设计稿章节分隔页）
+    add_textbox(
+        slide,
+        left=Pt(120), top=Pt(150),
+        width=Pt(900), height=Pt(420),
+        text=chapter["num"],
+        font_size=320,
+        bold=True,
+        font_name=theme.FONT_TITLE,
+        color=theme.BG_CREAM,
+    )
+
+    # ---- 章节中文名（衬线大标题）
     add_textbox(
         slide,
         left=Pt(220), top=Pt(300),
-        width=Pt(800), height=Pt(80),
+        width=Pt(900), height=Pt(80),
         text=chapter["title"],
-        font_size=theme.FONT_SIZES["page_title"],
+        font_size=32,
         bold=True,
-        color=theme.PRIMARY_DARK,
+        font_name=theme.FONT_TITLE,
+        color=theme.TEXT,
     )
 
-    # ---- 4px 橙色短分割线
+    # ---- 60pt 陶土橙细分割线（替代原 4px 橙条）
     add_rect(
         slide,
         left=Pt(220), top=Pt(390),
-        width=Pt(60), height=Pt(4),
-        fill="#FA8C16",
+        width=Pt(60), height=Pt(2),
+        fill=theme.TERRACOTTA,
     )
 
     # ---- 章节英文小字
@@ -172,20 +180,20 @@ def build_section_divider(prs, chapter_idx: int) -> int:
     }
     add_textbox(
         slide,
-        left=Pt(220), top=Pt(420),
-        width=Pt(800), height=Pt(40),
+        left=Pt(220), top=Pt(415),
+        width=Pt(800), height=Pt(36),
         text=en_titles[chapter["num"]],
-        font_size=16,
+        font_size=13,
         color=theme.TEXT_MUTED,
     )
 
-    # ---- 页码范围
+    # ---- 页码范围（极弱化）
     add_textbox(
         slide,
-        left=Pt(220), top=Pt(480),
-        width=Pt(800), height=Pt(40),
-        text=f"本章节包含第 {chapter['pages']} 页",
-        font_size=12,
+        left=Pt(220), top=Pt(460),
+        width=Pt(800), height=Pt(30),
+        text=f"第 {chapter['pages']} 页",
+        font_size=11,
         color=theme.TEXT_SUBTLE,
     )
 
@@ -193,28 +201,42 @@ def build_section_divider(prs, chapter_idx: int) -> int:
 
 
 def add_page_title(slide, title: str, subtitle: str = None,
-                   top: int = Pt(70)):
+                   top: int = Pt(70), *,
+                   accent_color=theme.TERRACOTTA, icon: str = ""):
     """
-    内容页的标准标题：黑色加粗大字 + 可选灰色副标题。
+    内容页的标准标题（莫兰迪极简版）：
+    - 衬线大标题（思源宋体）
+    - 60pt 极细陶土橙横线分隔
+    - 副标题用弱化灰
     返回正文起始 top。
     """
+    # 60pt 极细横线（章节色，替代原 4px 高条）
+    add_rect(
+        slide,
+        left=theme.MARGIN_LR, top=top - Pt(2),
+        width=Pt(60), height=Pt(1.5),
+        fill=accent_color,
+    )
+
+    title_text = f"{icon}  {title}" if icon else title
     add_textbox(
         slide,
-        left=theme.MARGIN_LR, top=top,
-        width=theme.SLIDE_WIDTH - 2 * theme.MARGIN_LR, height=Pt(50),
-        text=title,
+        left=theme.MARGIN_LR, top=top + Pt(8),
+        width=theme.SLIDE_WIDTH - 2 * theme.MARGIN_LR, height=Pt(46),
+        text=title_text,
         font_size=theme.FONT_SIZES["page_title"],
         bold=True,
-        color=theme.PRIMARY_DARK,
+        font_name=theme.FONT_TITLE,
+        color=theme.TEXT,
     )
     if subtitle:
         add_textbox(
             slide,
-            left=theme.MARGIN_LR, top=top + Pt(48),
-            width=theme.SLIDE_WIDTH - 2 * theme.MARGIN_LR, height=Pt(30),
+            left=theme.MARGIN_LR, top=top + Pt(58),
+            width=theme.SLIDE_WIDTH - 2 * theme.MARGIN_LR, height=Pt(24),
             text=subtitle,
-            font_size=theme.FONT_SIZES["body"],
+            font_size=theme.FONT_SIZES["subtitle"],
             color=theme.TEXT_MUTED,
         )
-        return top + Pt(85)
-    return top + Pt(60)
+        return top + Pt(92)
+    return top + Pt(70)

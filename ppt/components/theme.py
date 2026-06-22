@@ -1,5 +1,5 @@
 """
-PPT 视觉常量与占位信息 · 莫兰迪暖色极简版。
+PPT 视觉常量与占位信息 · 商务现代版（深蓝/金黄/深红）。
 
 所有颜色、字体、尺寸常量集中在此；所有 slide 和组件都从这里导入，
 改主题只需要改这一个文件。
@@ -27,7 +27,6 @@ CONTENT_BOTTOM = Pt(720)
 
 # 背景
 BG_CREAM = "#FFFFFF"           # 主背景（白）
-BG_DEEP = "#FFFFFF"            # 兼容旧名
 BG_PAPER = "#F4F1EA"           # 卡片底（淡米）
 
 # 文字
@@ -40,7 +39,7 @@ TEXT_FOOTER_WEAK = "#999999"   # 底部条项目名
 PRIMARY_DEEP = "#002060"       # 海军蓝（顶部条主色）
 PRIMARY = "#2D4470"            # 深蓝（章节标题）
 ACCENT = "#D3A518"             # 金黄（章节编号、强调分割线、页码）
-ACCENT2 = "#C00000"            # 深红（备用强调）
+ACCENT_RED = "#C00000"         # 深红（备用强调）
 
 # 兼容旧代码用
 PRIMARY_DARK = TEXT
@@ -50,6 +49,13 @@ SUCCESS = PRIMARY
 WARNING = ACCENT
 ERROR = "#A65D5D"
 
+# 旧 Morandi 调色板兼容别名（计划 Task 5/14 清理）
+TERRACOTTA = ACCENT          # 旧陶土橙 → 新金色
+SAGE = PRIMARY_DEEP          # 旧鼠尾草绿 → 新海军蓝
+SAND = BG_PAPER              # 旧沙色 → 新淡米
+ROSE = ACCENT_RED            # 旧玫瑰色 → 新深红
+SLATE = TEXT                 # 旧石板色 → 新近黑
+
 WHITE = "#FFFFFF"
 WHITE_ON_DARK = "#FFFFFF"
 BG = BG_CREAM
@@ -57,13 +63,13 @@ BORDER = "#E5DDD0"
 DIVIDER = "#E5DDD0"
 
 
-# ============ 智能体配色（莫兰迪 2 色为主，辅助色点缀）============
+# ============ 智能体配色（商务现代 4 色：深蓝/金/红/深蓝）============
 
 AGENT_COLORS = {
     "profile":    PRIMARY_DEEP,
     "resource":   ACCENT,
     "path":       PRIMARY,
-    "tutor":      ACCENT2,
+    "tutor":      ACCENT_RED,
     "assessment": PRIMARY_DEEP,
 }
 
