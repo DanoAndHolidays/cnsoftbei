@@ -13,6 +13,31 @@ from PIL import Image
 
 from . import theme
 
+from pptx.oxml.ns import qn
+from lxml import etree
+
+
+def set_run_font(run, role: str = "body"):
+    """
+    设置 run 字体（latin + 东亚双通道）。
+    role: heading | serif | body | mono
+    """
+    FONTS = {
+        "heading": (theme.FONT_HEADING, theme.FONT_FALLBACK_HEADING),
+        "serif":   (theme.FONT_SERIF,   theme.FONT_FALLBACK_SERIF),
+        "body":    (theme.FONT_BODY,    theme.FONT_FALLBACK_BODY),
+        "mono":    (theme.FONT_MONO,    theme.FONT_FALLBACK_MONO),
+    }
+    primary, fallback = FONTS.get(role, FONTS["body"])
+    run.font.name = primary  # 拉丁字符
+    # 中文走东亚字体通道
+    rPr = run._r.get_or_add_rPr()
+    # 移除现有 ea 标签
+    for ea in rPr.findall(qn('a:ea')):
+        rPr.remove(ea)
+    ea = etree.SubElement(rPr, qn('a:ea'))
+    ea.set('typeface', primary)
+
 
 def hex_to_rgb(hex_str: str) -> RGBColor:
     """'#1890FF' -> RGBColor(0x18, 0x90, 0xFF)"""
