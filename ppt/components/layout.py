@@ -77,6 +77,75 @@ def add_crest(slide):
         )
 
 
+def apply_chrome_v2(slide, chapter_idx: int, page_num: int):
+    """
+    在内容页加顶部条（章节信息 + 校徽）+ 底部条（项目名 + 页码）。
+    替换原 apply_chrome()。chapter_idx: 1~5; page_num: 1~21。
+    """
+    chapter = theme.CHAPTERS[chapter_idx - 1]
+
+    # ─── 顶部条：深蓝纯色 ───
+    add_rect(
+        slide,
+        left=0, top=0,
+        width=theme.SLIDE_WIDTH, height=theme.HEADER_BAR_HEIGHT,
+        fill=theme.HEADER_BAR_COLOR,
+    )
+
+    # ─── 左上角章节信息（双 run：金色编号 + 白色章节名） ───
+    tb = slide.shapes.add_textbox(
+        left=Pt(14), top=Pt(6),
+        width=Pt(800), height=Pt(16),
+    )
+    tf = tb.text_frame
+    tf.margin_left = tf.margin_right = Pt(0)
+    tf.margin_top = tf.margin_bottom = Pt(0)
+    p = tf.paragraphs[0]
+    run1 = p.add_run()
+    run1.text = chapter["num"] + "    "
+    run1.font.size = Pt(theme.HEADER_CHAPTER_FONT_SIZE)
+    run1.font.bold = True
+    run1.font.color.rgb = hex_to_rgb(theme.ACCENT)
+    set_run_font(run1, "body")
+    run2 = p.add_run()
+    run2.text = chapter["title"]
+    run2.font.size = Pt(theme.HEADER_CHAPTER_FONT_SIZE)
+    run2.font.color.rgb = hex_to_rgb(theme.WHITE)
+    set_run_font(run2, "body")
+
+    # ─── 右上角校徽 ───
+    add_crest(slide)
+
+    # ─── 底部条：深蓝纯色 ───
+    add_rect(
+        slide,
+        left=0, top=theme.SLIDE_HEIGHT - theme.FOOTER_BAR_HEIGHT,
+        width=theme.SLIDE_WIDTH, height=theme.FOOTER_BAR_HEIGHT,
+        fill=theme.FOOTER_BAR_COLOR,
+    )
+
+    # ─── 底部左侧：项目名 ───
+    add_textbox(
+        slide,
+        left=Pt(14),
+        top=theme.SLIDE_HEIGHT - theme.FOOTER_BAR_HEIGHT + Pt(2),
+        width=Pt(600), height=Pt(14),
+        text="学习智能体系统 · Multi-Agent Learning Platform",
+        font_size=7, color=theme.TEXT_FOOTER_WEAK,
+    )
+
+    # ─── 底部右侧：页码（金色粗体） ───
+    add_textbox(
+        slide,
+        left=theme.SLIDE_WIDTH - Pt(70),
+        top=theme.SLIDE_HEIGHT - theme.FOOTER_BAR_HEIGHT + Pt(1),
+        width=Pt(56), height=Pt(16),
+        text=f"{page_num} / {theme.TOTAL_PAGES}",
+        font_size=8.5, color=theme.ACCENT, bold=True,
+        align=PP_ALIGN.RIGHT,
+    )
+
+
 def hex_to_rgb(hex_str: str) -> RGBColor:
     """'#1890FF' -> RGBColor(0x18, 0x90, 0xFF)"""
     hex_str = hex_str.lstrip("#")
