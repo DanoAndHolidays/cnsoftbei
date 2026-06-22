@@ -14,9 +14,10 @@ import {
   CheckCircleOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
-import { mockAssessments, mockLearningPath, learningStats, assessmentSuggestions } from '../data/mockData';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+import { mockAssessments, mockLearningPath, learningStats } from '../data/mockData';
 import { loadPracticeState, learningPlan } from '../services/practiceGrader';
-import type { PracticeState } from '../types';
+import type { PracticeState, StudentProfile } from '../types';
 
 const { Title, Text } = Typography;
 
@@ -29,11 +30,18 @@ const Assessment: React.FC = () => {
     color: string;
   }
   const [practiceState, setPracticeState] = useState<PracticeState | null>(null);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
 
   // 加载练习数据
   const loadData = () => {
     const state = loadPracticeState();
     setPracticeState(state);
+    const savedProfile = localStorage.getItem('studentProfile');
+    if (savedProfile) {
+      try {
+        setProfile(JSON.parse(savedProfile));
+      } catch { /* ignore */ }
+    }
   };
 
   useEffect(() => {
@@ -93,6 +101,135 @@ const Assessment: React.FC = () => {
 
   // 计算总体评分
   const overallScore = assessmentItems.reduce((sum, a) => sum + a.score, 0) / (assessmentItems.length || 1);
+
+  // 生成雷达图数据：融合画像维度 + 练习得分
+  const getRadarData = () => {
+    const radarItems: { dimension: string; score: number; fullMark: number }[] = [];
+    const colors = ['#1890ff', '#52c41a', '#faad14', '#722ed1', '#eb2f96', '#13c2c2', '#eb2f96', '#52c41a'];
+
+    // 画像维度（来自 studentProfile.dimensions）
+    if (profile && profile.dimensions.length > 0) {
+      const dimScores: Record<string, number> = {};
+      profile.dimensions.forEach(d => {
+        // 将高/中/低转换为分数
+        dimScores[d.key] = d.level === '高' ? 90 : d.level === '中' ? 70 : 50;
+      });
+      profile.dimensions.forEach((d) => {
+        radarItems.push({
+          dimension: d.label,
+          score: dimScores[d.key] || 60,
+          fullMark: 100,
+        });
+      });
+    }
+
+    // 练习得分（当练习数据存在时补充）
+    if (practiceState && practiceState.tagScores.length > 0) {
+      practiceState.tagScores.forEach((ts) => {
+        const existIdx = radarItems.findIndex(r => r.dimension === tagToChinese(ts.tag));
+        if (existIdx >= 0) {
+          // 已存在则取最大值
+          radarItems[existIdx].score = Math.max(radarItems[existIdx].score, ts.score);
+        } else if (radarItems.length < 8) {
+          // 超出8个维度不再添加
+          radarItems.push({
+            dimension: tagToChinese(ts.tag),
+            score: ts.score,
+            fullMark: 100,
+          });
+        }
+      });
+    }
+
+    // 如果都没有数据，返回默认维度
+    if (radarItems.length === 0) {
+      const defaultDims = ['知识基础', '认知风格', '学习效率', '易错点', '学习节奏', '兴趣方向'];
+      defaultDims.forEach((dim) => {
+        radarItems.push({ dimension: dim, score: 60, fullMark: 100 });
+      });
+    }
+
+    return radarItems.map((item, idx) => ({
+      ...item,
+      color: colors[idx % colors.length],
+    }));
+  };
+
+  // 生成动态建议
+  const generateSuggestions = () => {
+    const suggestions: { color: string; dotIcon: string; title: string; description: string }[] = [];
+
+    // 1. 基于画像维度 level="低" 生成薄弱点建议
+    if (profile && profile.dimensions) {
+      profile.dimensions
+        .filter(d => d.level === '低')
+        .forEach(dim => {
+          suggestions.push({
+            color: 'orange',
+            dotIcon: 'FireOutlined',
+            title: `重点提升：${dim.label}`,
+            description: `根据您的学习画像，${dim.label}（${dim.value}）需要加强。建议增加该方向的练习。`,
+          });
+        });
+    }
+
+    // 2. 基于练习 tagScores 生成低分维度建议
+    if (practiceState && practiceState.tagScores) {
+      const lowScoreTags = practiceState.tagScores
+        .filter(ts => ts.score < 60 && ts.totalAnswered > 0)
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 2);
+      lowScoreTags.forEach(ts => {
+        suggestions.push({
+          color: 'red',
+          dotIcon: 'FireOutlined',
+          title: `薄弱点突破：${tagToChinese(ts.tag)}`,
+          description: `您在 ${tagToChinese(ts.tag)} 方面的正确率仅 ${ts.score}%，已完成 ${ts.totalAnswered} 题，建议专项训练。`,
+        });
+      });
+    }
+
+    // 3. 基于整体评分生成综合建议
+    if (overallScore < 60) {
+      suggestions.push({
+        color: 'blue',
+        dotIcon: 'DashboardOutlined',
+        title: '学习计划调整',
+        description: `您的综合评分偏低，建议优先巩固基础知识，减少高难度内容摄入。`,
+      });
+    } else if (overallScore >= 80) {
+      suggestions.push({
+        color: 'green',
+        dotIcon: 'CheckCircleOutlined',
+        title: '学习效果优秀',
+        description: `您的综合评分达到 ${Math.round(overallScore)} 分，建议挑战进阶内容。`,
+      });
+    }
+
+    // 4. 基于模块进度生成计划建议
+    const inProgressModules = practiceState?.moduleProgress.filter(m => m.completedQuestions > 0 && m.completedQuestions < m.totalQuestions) || [];
+    if (inProgressModules.length > 0) {
+      const module = inProgressModules[0];
+      suggestions.push({
+        color: 'blue',
+        dotIcon: 'DashboardOutlined',
+        title: '当前学习进度',
+        description: `您正在进行「${module.moduleName}」模块，已完成 ${module.completedQuestions}/${module.totalQuestions} 题。`,
+      });
+    }
+
+    // 确保至少有建议
+    if (suggestions.length === 0) {
+      suggestions.push({
+        color: 'green',
+        dotIcon: 'CheckCircleOutlined',
+        title: '学习状态良好',
+        description: '继续保持当前学习节奏，系统会持续跟踪您的学习效果。',
+      });
+    }
+
+    return suggestions.slice(0, 5);
+  };
 
   // 是否在 Practice 页面已触发过更新（通过自定义事件通知）
   useEffect(() => {
@@ -218,12 +355,26 @@ const Assessment: React.FC = () => {
         {/* 能力雷达图 */}
         <Col span={12}>
           <Card title="能力雷达图">
-            {/* TODO: 使用 Recharts RadarChart 替换 */}
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d9d9d9' }}>
-              {practiceState && practiceState.results.length > 0
-                ? '雷达图组件待接入'
-                : '开始练习后可查看能力雷达图'}
-            </div>
+            {(practiceState && practiceState.results.length > 0) || profile ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <RadarChart data={getRadarData()}>
+                  <PolarGrid stroke="#d9d9d9" />
+                  <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 11, fill: '#666' }} />
+                  <Radar
+                    name="能力评分"
+                    dataKey="score"
+                    stroke="#722ed1"
+                    fill="#722ed1"
+                    fillOpacity={0.3}
+                    dot={{ r: 4, fill: '#722ed1' }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d9d9d9' }}>
+                开始练习或构建画像后可查看能力雷达图
+              </div>
+            )}
           </Card>
         </Col>
 
@@ -351,7 +502,7 @@ const Assessment: React.FC = () => {
       {/* 智能调整建议 */}
       <Card title="智能调整建议" style={{ marginTop: 24 }}>
         <Timeline
-          items={assessmentSuggestions.map(item => {
+          items={generateSuggestions().map(item => {
             const dotIconMap: Record<string, React.ReactNode> = {
               DashboardOutlined: <DashboardOutlined />,
               CheckCircleOutlined: <CheckCircleOutlined />,

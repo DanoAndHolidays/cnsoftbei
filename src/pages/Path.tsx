@@ -10,23 +10,45 @@ import {
   ReloadOutlined,
   CloseOutlined,
   LockOutlined,
-  EyeOutlined,
 } from '@ant-design/icons';
 import { mockLearningPath, mockResources, smartRecommendations } from '../data/mockData';
 import { streamChatCompletion } from '../services/api';
+import { getAllGeneratedResources, type GeneratedResource } from '../services/resourceStorage';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
-import type { LearningPath, LearningNode } from '../types';
+import { parseStructuredPathResponse, adoptPredefinedPath } from '../services/pathParser';
+import { loadActiveStructuredPath, saveActiveStructuredPath } from '../services/activePathStorage';
+import { getAllBankIds, getBank, COMPLETION_THRESHOLD } from '../services/practiceGrader';
+import { allPaths } from '../services/pathRecommender';
+import type { LearningPath, LearningNode, StructuredLearningNode } from '../types';
 
-const { Title, Text } = Typography;
-const { Panel } = Collapse;
+const { Title, Text } = Typography
 
-const PAGE_KEY = 'path';
+const PAGE_KEY = 'path'
 
 const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
   const [pathData, setPathData] = useState<LearningPath>(() => {
+    // 优先使用已保存的结构化路径
+    const saved = loadActiveStructuredPath();
+    if (saved) {
+      return {
+        id: saved.id,
+        title: saved.title,
+        description: saved.description,
+        nodes: saved.nodes.map((n: StructuredLearningNode) => ({
+          id: n.id,
+          title: n.title,
+          description: n.description,
+          status: n.status,
+          progress: n.progress,
+          estimatedHours: n.estimatedHours,
+        })),
+        estimatedTime: `${Math.round(saved.nodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+        currentNodeId: saved.nodes[0]?.id || 'node-1',
+      };
+    }
     const cached = cachedState?.pathData;
     if (cached) {
       return {
@@ -50,6 +72,54 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // 已生成资源状态
+  const [generatedResources, setGeneratedResources] = useState<GeneratedResource[]>(() => getAllGeneratedResources());
+
+  // 监听资源更新事件
+  useEffect(() => {
+    const handler = () => setGeneratedResources(getAllGeneratedResources());
+    window.addEventListener('generatedResourcesUpdated', handler);
+    return () => window.removeEventListener('generatedResourcesUpdated', handler);
+  }, []);
+
+  // 监听 Practice 进度更新
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || !detail.moduleId) return;
+      const { moduleId, score } = detail;
+
+      const saved = loadActiveStructuredPath();
+      if (!saved) return;
+
+      let changed = false;
+      saved.nodes = saved.nodes.map(n => {
+        // 匹配：节点 moduleId 与事件 moduleId 相同
+        if (n.moduleId !== moduleId) return n;
+        if (n.status === 'completed') return n; // 不可回退
+
+        changed = true;
+        if (score >= COMPLETION_THRESHOLD) {
+          return { ...n, status: 'completed' as const, progress: 100 };
+        }
+        return { ...n, status: 'in-progress' as const, progress: score };
+      });
+
+      if (changed) {
+        saveActiveStructuredPath(saved);
+        setPathData(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(node => {
+            const updated = saved.nodes.find(n => n.id === node.id);
+            return updated ? { ...node, status: updated.status, progress: updated.progress } : node;
+          }),
+        }));
+      }
+    };
+    window.addEventListener('moduleProgressUpdated', handler);
+    return () => window.removeEventListener('moduleProgressUpdated', handler);
+  }, []);
+
   // 缓存状态变化
   useEffect(() => {
     saveState({ pathData, activeNode, isPlanning, planningResult, currentPlanText });
@@ -62,27 +132,36 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      const bankList = getAllBankIds().map(bankId => {
+        const bank = getBank(bankId);
+        if (!bank) return '';
+        return `- ${bankId}: ${bank.modules.map(m => `${m.id}:${m.name}`).join(' | ')}`;
+      }).filter(Boolean).join('\n');
+
       const messages = [
-        { role: 'system' as const, content: `你是路径规划智能体，专门为学生制定个性化的学习路径。
+        { role: 'system' as const, content: `你是路径规划智能体。学生会输入学习主题。
 
-请根据用户输入的学习主题或专业方向，生成一个详细的学习路径规划。
+可选题库与模块清单（共 ${getAllBankIds().length} 库）：
+${bankList}
 
-要求：
-1. 按照知识点的依赖关系排序（前置知识必须先学）
-2. 每个阶段有明确的目标和内容
-3. 包含预估学习时间
-4. 用清晰的层级结构展示
+任务：根据用户主题，从清单中挑选 3-6 个最相关的模块，按学习顺序排列。
+（解析器接受 1-N 节点，但 3-6 是建议范围。）
+每个节点必须包含合法的 questionBankId 和 moduleId。
+节点标题可与模块原名相同或重写以贴合主题。
+第一个节点 isEntry = true。
 
-请用以下JSON格式输出（只输出JSON，不要其他内容）：
+输出严格 JSON（仅 JSON，无其他文字）：
 {
-  "title": "学习路径名称",
-  "description": "路径描述",
+  "title": "<路径名>",
+  "description": "<路径描述>",
   "nodes": [
     {
-      "title": "阶段1名称",
-      "description": "阶段描述",
-      "estimatedHours": 8,
-      "resources": ["相关资源描述1", "资源2"]
+      "questionBankId": "<bankId>",
+      "moduleId": "<moduleId>",
+      "title": "<节点标题>",
+      "description": "<节点描述>",
+      "estimatedHours": <数字>,
+      "isEntry": true
     },
     ...
   ]
@@ -109,45 +188,45 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
         controller.signal,
       );
 
-      // 尝试解析JSON
-      try {
-        let jsonStr = fullResponse;
-        const jsonMatch = fullResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || fullResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1] || jsonMatch[0];
-        }
+      // 调用纯函数解析并校验
+      const result = parseStructuredPathResponse(fullResponse);
 
-        const planData = JSON.parse(jsonStr.includes('{') ? jsonStr.substring(jsonStr.indexOf('{')).replace(/```/g, '') : jsonStr);
-        hasJsonParsed = true;
-
-        const newNodes = planData.nodes.map((node: any, index: number) => ({
-          id: `node-${index + 1}`,
-          title: node.title,
-          description: node.description,
-          status: index === 0 ? 'in-progress' as const : 'locked' as const,
-          progress: 0,
-          estimatedHours: node.estimatedHours || 8,
-        }));
-
-        setPathData({
-          id: 'path-ai',
-          title: planData.title || `${topic}学习路径`,
-          description: planData.description || 'AI生成的个性化学习路径',
-          nodes: newNodes,
-          estimatedTime: `${Math.round(newNodes.reduce((sum: number, n: LearningNode) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
-          currentNodeId: newNodes[0]?.id || 'node-1',
-        });
-
-        setActiveNode(newNodes[0]?.id || 'node-1');
-        setPlanningResult('学习路径规划完成！');
-        setIsChangingPath(false);
-        setShowSteps(false);
-        message.success('AI已为您生成个性化学习路径');
-
-      } catch (parseError) {
-        console.error('Failed to parse path planning result:', parseError);
-        setPlanningResult('路径解析异常，请查看生成内容');
+      if (!result.ok) {
+        setPlanningResult(`路径解析失败：${result.errors.join('; ')}`);
+        console.error('Path parse errors:', result.errors);
+        return;
       }
+
+      const aiPath = result.path;
+      hasJsonParsed = true;
+
+      // 写入 localStorage
+      saveActiveStructuredPath(aiPath);
+
+      // 转换为本页使用的 LearningPath（含 status 映射）
+      const newNodes: LearningNode[] = aiPath.nodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        description: n.description,
+        status: n.status,
+        progress: n.progress,
+        estimatedHours: n.estimatedHours,
+      }));
+
+      setPathData({
+        id: aiPath.id,
+        title: aiPath.title,
+        description: aiPath.description,
+        nodes: newNodes,
+        estimatedTime: `${Math.round(newNodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+        currentNodeId: newNodes[0]?.id || 'node-1',
+      });
+
+      setActiveNode(newNodes[0]?.id || 'node-1');
+      setPlanningResult('学习路径规划完成！');
+      setIsChangingPath(false);
+      setShowSteps(false);
+      message.success(`AI 已为您生成包含 ${aiPath.nodes.filter(n => n.valid !== false).length} 个阶段的个性化学习路径`);
 
     } catch (error: any) {
       if (error?.name === 'AbortError') {
@@ -179,19 +258,6 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
     onNavigate?.('practice');
   };
 
-  const handleStartLearning = (nodeId: string) => {
-    const node = pathData.nodes.find(n => n.id === nodeId);
-    if (!node) return;
-
-    if (node.status === 'in-progress') {
-      onNavigate?.('practice');
-    } else if (node.status === 'completed') {
-      onNavigate?.('practice');
-    } else {
-      setSkipModalNode({ id: nodeId, title: node.title });
-    }
-  };
-
   const handleSkipConfirm = () => {
     if (skipModalNode) {
       doStartLearning(skipModalNode.id);
@@ -201,6 +267,50 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
 
   const handleCancel = () => {
     abortRef.current?.abort();
+  };
+
+  const handleAdoptPredefined = (predefinedId: string) => {
+    const p = allPaths.find(ap => ap.id === predefinedId);
+    if (!p) return;
+
+    const adopted = adoptPredefinedPath(
+      p.id,
+      p.name,
+      p.description,
+      p.modules.map(m => ({
+        questionBankId: m.questionBankId,
+        moduleId: m.moduleId,
+        name: m.name,
+        estimatedHours: m.estimatedHours,
+        isEntry: m.isEntry,
+      }))
+    );
+
+    saveActiveStructuredPath(adopted);
+
+    // 转换为 LearningPath
+    const newNodes: LearningNode[] = adopted.nodes.map(n => ({
+      id: n.id,
+      title: n.title,
+      description: n.description,
+      status: n.status,
+      progress: n.progress,
+      estimatedHours: n.estimatedHours,
+    }));
+
+    setPathData({
+      id: adopted.id,
+      title: adopted.title,
+      description: adopted.description,
+      nodes: newNodes,
+      estimatedTime: `${Math.round(newNodes.reduce((sum, n) => sum + (n.estimatedHours || 8), 0) / 40)}周`,
+      currentNodeId: newNodes[0]?.id || 'node-1',
+    });
+    setActiveNode(newNodes[0]?.id || 'node-1');
+    setPlanningResult('已采用推荐路径');
+    setIsChangingPath(false);
+    setShowSteps(false);
+    message.success(`已采用「${p.name}」`);
   };
 
   const handleGenerate = () => {
@@ -375,6 +485,52 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
         </Row>
       </Card>
 
+      {/* 推荐学习路径（预定义） */}
+      <Card title="推荐学习路径" style={{ marginTop: 24 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+          基于专家经验预制的 12 条结构化路径，每条都对应练习中心的具体题库模块
+        </Text>
+        <Row gutter={[16, 16]}>
+          {allPaths.map(p => {
+            const moduleCount = p.modules.length;
+            const isCurrent = pathData.id.startsWith(`adopted-${p.id}`);
+            return (
+              <Col span={6} key={p.id}>
+                <Card
+                  size="small"
+                  hoverable
+                  style={{
+                    borderColor: isCurrent ? '#1890ff' : undefined,
+                    borderWidth: isCurrent ? 2 : 1,
+                  }}
+                >
+                  <Text strong style={{ display: 'block', marginBottom: 4 }}>{p.name}</Text>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                    {p.description}
+                  </Text>
+                  <Space size={4} wrap style={{ marginBottom: 8 }}>
+                    {p.tags.slice(0, 3).map(t => (
+                      <Tag key={t} color="blue" style={{ fontSize: 11 }}>{t}</Tag>
+                    ))}
+                  </Space>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+                    共 {moduleCount} 个模块 · {p.modules.reduce((s, m) => s + (m.estimatedHours || 8), 0)}小时
+                  </div>
+                  <Button
+                    type={isCurrent ? 'primary' : 'default'}
+                    size="small"
+                    block
+                    onClick={() => handleAdoptPredefined(p.id)}
+                  >
+                    {isCurrent ? '当前采用' : '采用此路径'}
+                  </Button>
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
+      </Card>
+
       {/* 学习步骤可视化 */}
       {(!planningResult || showSteps) && (
         <Card title="学习步骤" style={{ marginTop: 24 }}>
@@ -398,51 +554,51 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
               activeKey={activeNode}
               onChange={(keys) => setActiveNode(keys.length > 0 ? keys[0] : '')}
             >
-              {pathData.nodes.map((node) => (
-                <Panel
-                  key={node.id}
-                  header={
-                    <Space>
-                      {getStatusIcon(node.status)}
-                      <Text strong>{node.title}</Text>
-                      {node.status === 'in-progress' && (
-                        <Tag color="blue">进行中</Tag>
-                      )}
-                      {node.status === 'completed' && (
-                        <Tag color="success">已完成</Tag>
-                      )}
-                      {node.status === 'locked' && (
-                        <Tag color="default">未解锁</Tag>
-                      )}
-                    </Space>
-                  }
-                  extra={
-                    node.status === 'locked' ? (
-                      <Button size="small" icon={<LockOutlined />} onClick={() => handleStartLearning(node.id)}>
-                        开始学习
-                      </Button>
-                    ) : node.status === 'in-progress' ? (
-                      <Button size="small" icon={<PlayCircleOutlined />} onClick={() => onNavigate?.('practice')}>
-                        继续学习
-                      </Button>
-                    ) : (
-                      <Button size="small" icon={<EyeOutlined />} onClick={() => onNavigate?.('practice')}>
-                        查看回顾
-                      </Button>
-                    )
-                  }
-                >
-                  {node.status === 'in-progress' && (
-                    <Progress percent={node.progress} status="active" style={{ marginBottom: 16 }} />
-                  )}
-                  <Text type="secondary">{node.description}</Text>
-                  {node.estimatedHours && (
-                    <div style={{ marginTop: 8 }}>
-                      <Tag icon={<ClockCircleOutlined />}>预估时长：{node.estimatedHours}小时</Tag>
-                    </div>
-                  )}
-                </Panel>
-              ))}
+              {/* {pathData.nodes.map((node) => (
+                // <Panel
+                //   key={node.id}
+                //   header={
+                //     <Space>
+                //       {getStatusIcon(node.status)}
+                //       <Text strong>{node.title}</Text>
+                //       {node.status === 'in-progress' && (
+                //         <Tag color="blue">进行中</Tag>
+                //       )}
+                //       {node.status === 'completed' && (
+                //         <Tag color="success">已完成</Tag>
+                //       )}
+                //       {node.status === 'locked' && (
+                //         <Tag color="default">未解锁</Tag>
+                //       )}
+                //     </Space>
+                //   }
+                //   extra={
+                //     node.status === 'locked' ? (
+                //       <Button size="small" icon={<LockOutlined />} onClick={() => handleStartLearning(node.id)}>
+                //         开始学习
+                //       </Button>
+                //     ) : node.status === 'in-progress' ? (
+                //       <Button size="small" icon={<PlayCircleOutlined />} onClick={() => onNavigate?.('practice')}>
+                //         继续学习
+                //       </Button>
+                //     ) : (
+                //       <Button size="small" icon={<EyeOutlined />} onClick={() => onNavigate?.('practice')}>
+                //         查看回顾
+                //       </Button>
+                //     )
+                //   }
+                // >
+                //   {node.status === 'in-progress' && (
+                //     <Progress percent={node.progress} status="active" style={{ marginBottom: 16 }} />
+                //   )}
+                //   <Text type="secondary">{node.description}</Text>
+                //   {node.estimatedHours && (
+                //     <div style={{ marginTop: 8 }}>
+                //       <Tag icon={<ClockCircleOutlined />}>预估时长：{node.estimatedHours}小时</Tag>
+                //     </div>
+                //   )}
+                // </Panel>
+              ))} */}
             </Collapse>
           </Card>
         </Col>
@@ -495,17 +651,17 @@ const Path: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) 
           基于您的学习进度和画像，系统为您智能推送以下资源
         </Text>
         <Row gutter={16}>
-          {mockResources.slice(0, 4).map(resource => (
-            <Col span={6} key={resource.id}>
+          {(generatedResources.length > 0 ? generatedResources.slice(0, 4) : mockResources.slice(0, 4)).map((resource, idx) => (
+            <Col span={6} key={resource.id || idx}>
               <Card size="small" hoverable>
                 <Card.Meta
                   avatar={
-                    <Avatar shape="square" style={{ background: '#1890ff' }}>
-                      {resource.type[0].toUpperCase()}
+                    <Avatar shape="square" style={{ background: '#722ed1' }}>
+                      {(resource as any).type?.[0]?.toUpperCase() || 'R'}
                     </Avatar>
                   }
-                  title={<Text style={{ fontSize: 12 }}>{resource.title}</Text>}
-                  description={<Tag color="blue">精准推送</Tag>}
+                  title={<Text style={{ fontSize: 12 }} ellipsis={{ tooltip: false }}>{(resource as any).topic || (resource as any).title}</Text>}
+                  description={<Tag color="purple">{generatedResources.length > 0 ? '已生成' : '推荐'}</Tag>}
                 />
               </Card>
             </Col>

@@ -132,7 +132,18 @@ export async function streamChatCompletion(
 
   } catch (error: any) {
     console.error('Stream API call failed:', error);
-    throw error;
+    // 提供更详细的错误信息
+    let errorMsg = error.message || 'Unknown error';
+    if (error.cause) {
+      errorMsg += ` (cause: ${error.cause})`;
+    }
+    // 区分 fetch 网络错误 vs API 错误
+    if (error.message === 'Failed to fetch' || error.message === 'fetch failed') {
+      errorMsg = '网络请求失败，请检查网络连接或代理设置';
+    } else if (!errorMsg.includes('API Error')) {
+      errorMsg = `请求失败: ${errorMsg}`;
+    }
+    throw new Error(errorMsg);
   }
 }
 

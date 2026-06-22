@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout, Button } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import SideMenu from './components/SideMenu';
@@ -18,6 +18,22 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedKey, setSelectedKey] = useState('home');
 
+  // 监听跨页面导航事件（如 Path → Practice）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === 'practice') {
+        setSelectedKey('practice');
+      }
+    };
+    window.addEventListener('navigateToPractice', handler);
+    window.addEventListener('navigateToPage', handler);
+    return () => {
+      window.removeEventListener('navigateToPractice', handler);
+      window.removeEventListener('navigateToPage', handler);
+    };
+  }, []);
+
   const renderPage = () => {
     switch (selectedKey) {
       case 'home':
@@ -33,7 +49,7 @@ function App() {
       case 'assessment':
         return <Assessment />;
       case 'practice':
-        return <Practice />;
+        return <Practice onNavigate={setSelectedKey} />;
       default:
         return <Home />;
     }
