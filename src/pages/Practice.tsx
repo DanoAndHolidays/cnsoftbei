@@ -25,6 +25,8 @@ import {
   submitAnswer,
   getOrCreatePracticeState,
   resetPracticeState,
+  setActiveBank,
+  getBank,
 } from '../services/practiceGrader';
 import { loadCurrentPathStage } from '../services/learningOrchestrator';
 import {
@@ -56,7 +58,7 @@ interface QuestionResult {
   isSubmitted: boolean;
 }
 
-const Practice: React.FC = () => {
+const Practice: React.FC<{ onNavigate?: (key: string) => void }> = ({ onNavigate }) => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
   const practiceState = getOrCreatePracticeState();

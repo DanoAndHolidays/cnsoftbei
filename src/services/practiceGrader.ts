@@ -17,27 +17,155 @@ import {
   SYSTEM_EVENTS,
 } from './learningOrchestrator';
 
+// ==================== 路径-练习同步阈值 ====================
+/** 模块得分达到此阈值时，路径节点自动标记为已完成 */
+export const COMPLETION_THRESHOLD = 80;
+
+// ==================== 题库注册表 ====================
+interface QuestionBankData {
+  id: string;
+  name: string;
+  description: string;
+  modules: { id: string; name: string; description: string; questionCount: number; tags: string[] }[];
+  questions: PracticeQuestion[];
+}
+
+const bankRegistry = new Map<string, QuestionBankData>();
+[pythonBank, jsBank, dsBank, sqlBank, javaBank, goBank, csharpBank, rustBank, devopsBank, networksBank, linuxBank, mlBank].forEach(bank => {
+  bankRegistry.set(bank.id, bank as QuestionBankData);
+});
+
+export function getBank(bankId: string): QuestionBankData | undefined {
+  return bankRegistry.get(bankId);
+}
+
+export function getAllBankIds(): string[] {
+  return Array.from(bankRegistry.keys());
+}
+
+export function getQuestionsByBank(bankId: string): PracticeQuestion[] {
+  const bank = bankRegistry.get(bankId);
+  return bank?.questions || [];
+}
+
+export function getAllQuestions(): PracticeQuestion[] {
+  return Array.from(bankRegistry.values()).flatMap(b => b.questions);
+}
+
+export function getModuleInfo(questionBankId: string, moduleId: string) {
+  const bank = bankRegistry.get(questionBankId);
+  return bank?.modules.find(m => m.id === moduleId);
+}
+
+// 向后兼容：默认导出 Python 题库
+export const learningPlan = pythonBank;
+export const questions = pythonBank.questions as PracticeQuestion[];
+
+// ==================== 活跃学习路径 ====================
+const ACTIVE_PATH_KEY = 'activeLearningPath';
+const ACTIVE_BANK_KEY = 'activeQuestionBank';
+
+export function setActivePath(pathId: string): void {
+  localStorage.setItem(ACTIVE_PATH_KEY, pathId);
+}
+
+export function getActivePath(): string | null {
+  return localStorage.getItem(ACTIVE_PATH_KEY);
+}
+
+export function setActiveBank(bankId: string): void {
+  localStorage.setItem(ACTIVE_BANK_KEY, bankId);
+}
+
+export function getActiveBank(): string {
+  return localStorage.getItem(ACTIVE_BANK_KEY) || 'python-basics';
+}
+
+export function getActiveQuestions(): PracticeQuestion[] {
+  return getQuestionsByBank(getActiveBank());
+}
+
+export function getActiveModuleProgress(): { moduleId: string; name: string; totalQuestions: number }[] {
+  const bank = bankRegistry.get(getActiveBank());
+  return bank?.modules.map(m => ({
+    moduleId: m.id,
+    name: m.name,
+    totalQuestions: m.questionCount,
+  })) || [];
+}
+
 // ==================== Tag → 画像维度映射 ====================
 const TAG_TO_DIMENSION: Record<string, string> = {
-  // 知识基础
-  syntax: 'knowledgeBase',
-  'data-types': 'knowledgeBase',
-  operators: 'knowledgeBase',
-  'control-flow': 'knowledgeBase',
-  functions: 'knowledgeBase',
-  modules: 'knowledgeBase',
-  scope: 'knowledgeBase',
-  OOP: 'knowledgeBase',
-  classes: 'knowledgeBase',
-  inheritance: 'knowledgeBase',
-  polymorphism: 'knowledgeBase',
-  exceptions: 'knowledgeBase',
-  files: 'knowledgeBase',
-  decorators: 'knowledgeBase',
-  comprehensions: 'knowledgeBase',
-  // 易错点
+  // Python
+  syntax: 'knowledgeBase', 'data-types': 'knowledgeBase', operators: 'knowledgeBase',
+  'control-flow': 'knowledgeBase', functions: 'knowledgeBase', modules: 'knowledgeBase',
+  scope: 'knowledgeBase', OOP: 'knowledgeBase', classes: 'knowledgeBase',
+  inheritance: 'knowledgeBase', polymorphism: 'knowledgeBase', exceptions: 'knowledgeBase',
+  files: 'knowledgeBase', decorators: 'knowledgeBase', comprehensions: 'knowledgeBase',
+  // JS/Web
+  'js-syntax': 'knowledgeBase', 'js-data-types': 'knowledgeBase', 'js-operators': 'knowledgeBase',
+  'js-control-flow': 'knowledgeBase', 'js-functions': 'knowledgeBase', 'js-closure': 'knowledgeBase',
+  'js-async': 'knowledgeBase', dom: 'knowledgeBase', 'js-events': 'knowledgeBase',
+  browser: 'knowledgeBase', http: 'knowledgeBase', fetch: 'knowledgeBase', restful: 'knowledgeBase',
+  cors: 'knowledgeBase',
+  // DSA
+  array: 'knowledgeBase', 'linked-list': 'knowledgeBase', stack: 'knowledgeBase', queue: 'knowledgeBase',
+  'binary-tree': 'knowledgeBase', graph: 'knowledgeBase', 'tree-traversal': 'knowledgeBase',
+  bfs: 'knowledgeBase', dfs: 'knowledgeBase', sorting: 'knowledgeBase', 'binary-search': 'knowledgeBase',
+  complexity: 'knowledgeBase', recursion: 'knowledgeBase', 'dynamic-programming': 'knowledgeBase',
+  greedy: 'knowledgeBase', 'divide-conquer': 'knowledgeBase',
+  // SQL
+  'sql-select': 'knowledgeBase', 'sql-where': 'knowledgeBase', 'sql-aggregation': 'knowledgeBase',
+  'sql-join': 'knowledgeBase', 'sql-subquery': 'knowledgeBase', 'sql-union': 'knowledgeBase',
+  'database-normalization': 'knowledgeBase', 'database-index': 'knowledgeBase',
+  'database-transaction': 'knowledgeBase', 'sql-window': 'knowledgeBase',
+  'sql-groupby': 'knowledgeBase', 'sql-optimization': 'knowledgeBase',
+  // Java
+  'java-syntax': 'knowledgeBase', 'java-data-types': 'knowledgeBase', 'java-operators': 'knowledgeBase',
+  'java-control-flow': 'knowledgeBase', 'java-oop': 'knowledgeBase', 'java-classes': 'knowledgeBase',
+  'java-inheritance': 'knowledgeBase', 'java-polymorphism': 'knowledgeBase', 'java-exceptions': 'knowledgeBase',
+  'java-collections': 'knowledgeBase', 'java-generics': 'knowledgeBase', 'java-stream': 'knowledgeBase',
+  'java-threading': 'knowledgeBase', 'java-reflect': 'knowledgeBase',
+  // Go
+  'go-syntax': 'knowledgeBase', 'go-data-types': 'knowledgeBase', 'go-operators': 'knowledgeBase',
+  'go-control-flow': 'knowledgeBase', 'go-functions': 'knowledgeBase', 'go-error': 'knowledgeBase',
+  'go-packages': 'knowledgeBase', 'go-concurrency': 'knowledgeBase', 'go-channel': 'knowledgeBase',
+  'go-goroutine': 'knowledgeBase', 'go-http': 'knowledgeBase', 'go-json': 'knowledgeBase',
+  'go-testing': 'knowledgeBase',
+  // C#
+  'csharp-syntax': 'knowledgeBase', 'csharp-data-types': 'knowledgeBase', 'csharp-operators': 'knowledgeBase',
+  'csharp-control-flow': 'knowledgeBase', 'csharp-oop': 'knowledgeBase', 'csharp-interface': 'knowledgeBase',
+  'csharp-delegate': 'knowledgeBase', 'csharp-linq': 'knowledgeBase', 'csharp-async': 'knowledgeBase',
+  'csharp-threading': 'knowledgeBase', 'csharp-web': 'knowledgeBase', 'csharp-ef': 'knowledgeBase',
+  'csharp-json': 'knowledgeBase',
+  // Rust
+  'rust-syntax': 'knowledgeBase', 'rust-ownership': 'knowledgeBase', 'rust-borrow': 'knowledgeBase',
+  'rust-data-types': 'knowledgeBase', 'rust-lifetime': 'knowledgeBase', 'rust-trait': 'knowledgeBase',
+  'rust-generics': 'knowledgeBase', 'rust-result': 'knowledgeBase', 'rust-panic': 'knowledgeBase',
+  'rust-modules': 'knowledgeBase', 'rust-threading': 'knowledgeBase', 'rust-concurrency': 'knowledgeBase',
+  'rust-smart-pointer': 'knowledgeBase',
+  // DevOps
+  'linux-shell': 'knowledgeBase', 'linux-permission': 'knowledgeBase', 'linux-file-system': 'knowledgeBase',
+  docker: 'knowledgeBase', dockerfile: 'knowledgeBase', 'docker-compose': 'knowledgeBase',
+  kubernetes: 'knowledgeBase', kubectl: 'knowledgeBase', 'k8s-pod': 'knowledgeBase',
+  cicd: 'knowledgeBase', monitoring: 'knowledgeBase', prometheus: 'knowledgeBase',
+  // 计算机网络
+  osi: 'knowledgeBase', tcpip: 'knowledgeBase', encapsulation: 'knowledgeBase',
+  https: 'knowledgeBase', rest: 'knowledgeBase', cookie: 'knowledgeBase',
+  handshake: 'knowledgeBase', reliability: 'knowledgeBase', udp: 'knowledgeBase',
+  dns: 'knowledgeBase', cdn: 'knowledgeBase', security: 'knowledgeBase',
+  // Linux 基础
+  'linux-file': 'knowledgeBase', directory: 'knowledgeBase', 'file-ops': 'knowledgeBase',
+  'linux-user': 'knowledgeBase', permission: 'knowledgeBase', chmod: 'knowledgeBase',
+  sudo: 'knowledgeBase', bash: 'knowledgeBase', 'shell-script': 'knowledgeBase',
+  'linux-process': 'knowledgeBase', systemd: 'knowledgeBase', log: 'knowledgeBase',
+  // 机器学习
+  supervised: 'knowledgeBase', unsupervised: 'knowledgeBase', regression: 'knowledgeBase',
+  classification: 'knowledgeBase', clustering: 'knowledgeBase', 'dim-reduction': 'knowledgeBase',
+  evaluation: 'knowledgeBase', metrics: 'knowledgeBase', 'cross-validation': 'knowledgeBase',
+  scaling: 'knowledgeBase', 'feature-engineering': 'knowledgeBase', tuning: 'knowledgeBase',
+  // 通用
   errorProne: 'errorProne',
-  // 学习习惯
   studyHabit: 'studyHabit',
   // 数据库知识
   '数据库基础': 'knowledgeBase',
@@ -240,7 +368,8 @@ export async function gradeByAIVerified(
 export function calculateModuleProgress(
   moduleId: string,
   results: PracticeResult[],
-  allQuestions: PracticeQuestion[]
+  allQuestions: PracticeQuestion[],
+  moduleName?: string
 ): ModuleProgress {
   const moduleQuestions = allQuestions.filter(q => q.moduleId === moduleId);
   const moduleResults = results.filter(r => r.moduleId === moduleId);
@@ -248,11 +377,9 @@ export function calculateModuleProgress(
   const totalQuestions = moduleQuestions.length;
   const completedQuestions = moduleResults.length;
 
-  // 客观题判分
   const objectiveResults = moduleResults.filter(r => r.isCorrect !== null);
   const correctCount = objectiveResults.filter(r => r.isCorrect).length;
 
-  // 简答题统计
   const shortResults = moduleResults.filter(r => {
     const q = allQuestions.find(q => q.id === r.questionId);
     return q?.type === 'short';
@@ -272,7 +399,7 @@ export function calculateModuleProgress(
 
   return {
     moduleId,
-    moduleName: learningPlan.modules.find(m => m.id === moduleId)?.name || moduleId,
+    moduleName: moduleName || moduleId,
     totalQuestions,
     completedQuestions,
     correctCount,
@@ -329,7 +456,6 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
   const savedProfile = localStorage.getItem(userKey('studentProfile'));
   const profile = savedProfile ? JSON.parse(savedProfile) : { ...initialProfile };
 
-  // 按 Tag 维度分组
   const dimensionScores: Record<string, { scores: number[]; count: number }> = {};
 
   for (const ts of tagScores) {
@@ -341,7 +467,6 @@ export function updateProfileByTagScores(tagScores: TagScore[]) {
     }
   }
 
-  // 计算每个画像维度的综合得分并更新
   const dimensionKeys = [
     'knowledgeBase', 'cognitiveStyle', 'errorProne',
     'learningPace', 'interestDirection', 'studyHabit',
@@ -392,10 +517,14 @@ export function getOrCreatePracticeState(): PracticeState {
   const existing = loadPracticeState();
   if (existing) return existing;
 
+  const activeQuestions = getActiveQuestions();
+  const bank = getBank(getActiveBank());
+  const modules = bank?.modules || [];
+
   const state: PracticeState = {
-    planId: learningPlan.id,
+    planId: getActiveBank(),
     results: [],
-    moduleProgress: learningPlan.modules.map(m => calculateModuleProgress(m.id, [], questions)),
+    moduleProgress: modules.map(m => calculateModuleProgress(m.id, [], activeQuestions, m.name)),
     tagScores: [],
     updatedAt: new Date().toISOString(),
   };
@@ -413,11 +542,13 @@ export function submitAnswer(
   const state = getOrCreatePracticeState();
   const previousProfile = localStorage.getItem(userKey('studentProfile'));
 
-  // 更新或添加结果
   const existingIdx = state.results.findIndex(r => r.questionId === questionId);
+  const question = allQuestions.find(q => q.id === questionId);
+  const moduleId = question?.moduleId || '';
+
   const result: PracticeResult = {
     questionId,
-    moduleId: questions.find(q => q.id === questionId)?.moduleId || '',
+    moduleId,
     userAnswer,
     isCorrect,
     aiScore,
@@ -430,11 +561,13 @@ export function submitAnswer(
     state.results.push(result);
   }
 
-  // 重新计算模块进度
-  state.moduleProgress = learningPlan.modules.map(m => calculateModuleProgress(m.id, state.results, questions));
+  // 重新计算所有模块的进度
+  const bank = getBank(getActiveBank());
+  state.moduleProgress = (bank?.modules || []).map(m =>
+    calculateModuleProgress(m.id, state.results, allQuestions, m.name)
+  );
 
-  // 重新计算 Tag 得分
-  state.tagScores = calculateTagScores(state.results, questions);
+  state.tagScores = calculateTagScores(state.results, allQuestions);
 
   const updatedProfile = updateProfileByTagScores(state.tagScores);
   if (updatedProfile?.learningProfile) {
@@ -479,10 +612,14 @@ export function submitAnswer(
 
 // ==================== 重置练习状态 ====================
 export function resetPracticeState(): PracticeState {
+  const allQuestions = getAllQuestions();
+  const bank = getBank(getActiveBank());
+  const modules = bank?.modules || [];
+
   const state: PracticeState = {
-    planId: learningPlan.id,
+    planId: getActiveBank(),
     results: [],
-    moduleProgress: learningPlan.modules.map(m => calculateModuleProgress(m.id, [], questions)),
+    moduleProgress: modules.map(m => calculateModuleProgress(m.id, [], allQuestions, m.name)),
     tagScores: [],
     updatedAt: new Date().toISOString(),
   };

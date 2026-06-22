@@ -1,0 +1,160 @@
+{
+  "paths": [
+    {
+      "id": "python-fullstack",
+      "name": "Python 全栈工程师路径",
+      "description": "从 Python 基础出发，覆盖 Web 后端、数据库、异步编程，系统培养全栈实战能力",
+      "tags": ["python", "web", "backend", "async", "database"],
+      "profileMatchTags": ["knowledgeBase:Python/编程基础", "interestDirection:后端开发/Python", "cognitiveStyle:实践驱动"],
+      "modules": [
+        { "questionBankId": "python-basics", "moduleId": "module-1", "name": "Python 基础语法", "isEntry": true, "estimatedHours": 8 },
+        { "questionBankId": "python-basics", "moduleId": "module-2", "name": "函数与模块", "estimatedHours": 10 },
+        { "questionBankId": "python-basics", "moduleId": "module-4", "name": "进阶与实战（异常/文件/装饰器）", "estimatedHours": 10 },
+        { "questionBankId": "sql-database", "moduleId": "module-1", "name": "SQL 基础查询", "estimatedHours": 6 },
+        { "questionBankId": "sql-database", "moduleId": "module-3", "name": "数据库设计原理（索引/事务）", "estimatedHours": 8 }
+      ]
+    },
+    {
+      "id": "javascript-frontend",
+      "name": "JavaScript 前端工程师路径",
+      "description": "从 JavaScript 语言核心到 Web 开发，涵盖 DOM、异步、网络请求，构建前端工程化能力",
+      "tags": ["javascript", "frontend", "web", "async"],
+      "profileMatchTags": ["knowledgeBase:JavaScript/Web基础", "interestDirection:Web前端开发", "cognitiveStyle:视觉型/动手型"],
+      "modules": [
+        { "questionBankId": "javascript-web", "moduleId": "module-1", "name": "JavaScript 基础语法", "isEntry": true, "estimatedHours": 8 },
+        { "questionBankId": "javascript-web", "moduleId": "module-2", "name": "函数与异步编程", "estimatedHours": 12 },
+        { "questionBankId": "javascript-web", "moduleId": "module-3", "name": "DOM 与事件", "estimatedHours": 8 },
+        { "questionBankId": "javascript-web", "moduleId": "module-4", "name": "HTTP 与网络请求", "estimatedHours": 8 }
+      ]
+    },
+    {
+      "id": "dsa-engineer",
+      "name": "算法工程师路径",
+      "description": "系统学习数据结构与算法，为面试和竞赛打下坚实基础",
+      "tags": ["algorithm", "data-structure", "interview"],
+      "profileMatchTags": ["knowledgeBase:编程基础", "interestDirection:AI/算法", "cognitiveStyle:理论深度型"],
+      "modules": [
+        { "questionBankId": "data-structures", "moduleId": "module-1", "name": "基础数据结构（数组/链表/栈/队列）", "isEntry": true, "estimatedHours": 12 },
+        { "questionBankId": "data-structures", "moduleId": "module-2", "name": "树与图（图论/DFS/BFS）", "estimatedHours": 14 },
+        { "questionBankId": "data-structures", "moduleId": "module-3", "name": "排序与二分查找", "estimatedHours": 10 },
+        { "questionBankId": "data-structures", "moduleId": "module-4", "name": "算法思想（递归/DP/贪心）", "estimatedHours": 16 }
+      ]
+    },
+    {
+      "id": "sql-data-analyst",
+      "name": "SQL 数据分析师路径",
+      "description": "从 SQL 查询到数据库原理，培养数据分析能力",
+      "tags": ["sql", "database", "data-analysis"],
+      "profileMatchTags": ["knowledgeBase:数据库基础", "interestDirection:数据科学/分析", "cognitiveStyle:系统性/数据驱动"],
+      "modules": [
+        { "questionBankId": "sql-database", "moduleId": "module-1", "name": "SQL 基础查询", "isEntry": true, "estimatedHours": 6 },
+        { "questionBankId": "sql-database", "moduleId": "module-2", "name": "多表查询与连接", "estimatedHours": 8 },
+        { "questionBankId": "sql-database", "moduleId": "module-3", "name": "数据库设计原理（范式/索引/事务）", "estimatedHours": 10 },
+        { "questionBankId": "sql-database", "moduleId": "module-4", "name": "进阶查询与优化", "estimatedHours": 8 }
+      ]
+    },
+    {
+      "id": "java-backend",
+      "name": "Java 后端工程师路径",
+      "description": "从 Java 基础到 Spring 框架，掌握企业级后端开发能力",
+      "tags": ["java", "backend", "spring", "enterprise"],
+      "profileMatchTags": ["knowledgeBase:编程基础/Java", "interestDirection:后端开发/Java", "cognitiveStyle:系统性/工程化"],
+      "modules": [
+        { "questionBankId": "java-basics", "moduleId": "module-1", "name": "Java 基础语法", "isEntry": true, "estimatedHours": 10 },
+        { "questionBankId": "java-basics", "moduleId": "module-2", "name": "面向对象编程", "estimatedHours": 12 },
+        { "questionBankId": "java-basics", "moduleId": "module-3", "name": "异常与集合框架", "estimatedHours": 10 },
+        { "questionBankId": "java-basics", "moduleId": "module-4", "name": "Java 进阶与并发", "estimatedHours": 12 }
+      ]
+    },
+    {
+      "id": "go-cloud",
+      "name": "Go 云原生工程师路径",
+      "description": "学习 Go 语言与云原生技术，掌握容器化和微服务架构",
+      "tags": ["go", "cloud", "kubernetes", "microservice"],
+      "profileMatchTags": ["knowledgeBase:编程基础", "interestDirection:云原生/DevOps", "cognitiveStyle:工程化/实践驱动"],
+      "modules": [
+        { "questionBankId": "go-basics", "moduleId": "module-1", "name": "Go 基础语法", "isEntry": true, "estimatedHours": 10 },
+        { "questionBankId": "go-basics", "moduleId": "module-3", "name": "并发编程", "estimatedHours": 12 },
+        { "questionBankId": "data-structures", "moduleId": "module-1", "name": "基础数据结构", "estimatedHours": 12 },
+        { "questionBankId": "devops-basics", "moduleId": "module-2", "name": "Docker 容器化", "estimatedHours": 8 }
+      ]
+    },
+    {
+      "id": "react-frontend",
+      "name": "React 前端专家路径",
+      "description": "深入 React 生态体系，包括 Hooks、状态管理、性能优化",
+      "tags": ["react", "frontend", "hooks", "state-management"],
+      "profileMatchTags": ["knowledgeBase:JavaScript/Web基础", "interestDirection:Web前端开发/React", "cognitiveStyle:视觉型/动手型"],
+      "modules": [
+        { "questionBankId": "javascript-web", "moduleId": "module-1", "name": "JavaScript 基础语法", "isEntry": true, "estimatedHours": 8 },
+        { "questionBankId": "javascript-web", "moduleId": "module-3", "name": "DOM 与事件", "estimatedHours": 8 },
+        { "questionBankId": "javascript-web", "moduleId": "module-4", "name": "HTTP 与网络请求", "estimatedHours": 8 },
+        { "questionBankId": "data-structures", "moduleId": "module-1", "name": "基础数据结构", "estimatedHours": 12 }
+      ]
+    },
+    {
+      "id": "ai-data-science",
+      "name": "AI 与数据科学路径",
+      "description": "从 Python 数据处理到机器学习基础，构建 AI 应用能力",
+      "tags": ["ai", "machine-learning", "python", "data-science"],
+      "profileMatchTags": ["knowledgeBase:Python/编程基础", "interestDirection:AI/机器学习", "cognitiveStyle:理论深度型/数据驱动"],
+      "modules": [
+        { "questionBankId": "python-basics", "moduleId": "module-1", "name": "Python 基础语法", "isEntry": true, "estimatedHours": 8 },
+        { "questionBankId": "python-basics", "moduleId": "module-2", "name": "函数与模块", "estimatedHours": 10 },
+        { "questionBankId": "data-structures", "moduleId": "module-1", "name": "基础数据结构", "estimatedHours": 12 },
+        { "questionBankId": "sql-database", "moduleId": "module-1", "name": "SQL 基础查询", "estimatedHours": 6 }
+      ]
+    },
+    {
+      "id": "csharp-dotnet",
+      "name": "C# .NET 开发路径",
+      "description": "基于 .NET 平台，学习 C# 语言和桌面/Web 开发",
+      "tags": ["csharp", "dotnet", "backend", "desktop"],
+      "profileMatchTags": ["knowledgeBase:编程基础/C#", "interestDirection:后端开发/C#", "cognitiveStyle:系统性/工程化"],
+      "modules": [
+        { "questionBankId": "csharp-basics", "moduleId": "module-1", "name": "C# 基础语法", "isEntry": true, "estimatedHours": 10 },
+        { "questionBankId": "csharp-basics", "moduleId": "module-2", "name": "面向对象与 LINQ", "estimatedHours": 12 },
+        { "questionBankId": "csharp-basics", "moduleId": "module-3", "name": "多线程与异步", "estimatedHours": 10 },
+        { "questionBankId": "data-structures", "moduleId": "module-1", "name": "基础数据结构", "estimatedHours": 12 }
+      ]
+    },
+    {
+      "id": "rust-systems",
+      "name": "Rust 系统编程路径",
+      "description": "学习 Rust 语言，掌握内存安全和系统级编程能力",
+      "tags": ["rust", "systems", "memory-safety", "performance"],
+      "profileMatchTags": ["knowledgeBase:编程基础/Rust", "interestDirection:系统编程/Rust", "cognitiveStyle:理论深度型"],
+      "modules": [
+        { "questionBankId": "rust-basics", "moduleId": "module-1", "name": "Rust 基础语法", "isEntry": true, "estimatedHours": 12 },
+        { "questionBankId": "rust-basics", "moduleId": "module-2", "name": "生命周期与 trait", "estimatedHours": 14 },
+        { "questionBankId": "rust-basics", "moduleId": "module-4", "name": "并发与智能指针", "estimatedHours": 12 },
+        { "questionBankId": "data-structures", "moduleId": "module-3", "name": "排序与二分查找", "estimatedHours": 10 }
+      ]
+    },
+    {
+      "id": "mobile-android",
+      "name": "Android 移动开发路径",
+      "description": "基于 Java/Kotlin 和 Android SDK 开发移动应用",
+      "tags": ["android", "mobile", "kotlin", "java"],
+      "profileMatchTags": ["knowledgeBase:Java/Web基础", "interestDirection:移动开发/Android", "cognitiveStyle:实践驱动"],
+      "modules": [
+        { "questionBankId": "java-basics", "moduleId": "module-1", "name": "Java 基础语法", "isEntry": true, "estimatedHours": 10 },
+        { "questionBankId": "java-basics", "moduleId": "module-2", "name": "面向对象编程", "estimatedHours": 12 },
+        { "questionBankId": "javascript-web", "moduleId": "module-4", "name": "HTTP 与网络请求", "estimatedHours": 8 }
+      ]
+    },
+    {
+      "id": "devops-sre",
+      "name": "DevOps 与 SRE 路径",
+      "description": "学习运维自动化、容器化、监控与可靠性工程",
+      "tags": ["devops", "sre", "kubernetes", "monitoring"],
+      "profileMatchTags": ["knowledgeBase:运维/DevOps", "interestDirection:云原生/DevOps", "cognitiveStyle:工程化/系统性"],
+      "modules": [
+        { "questionBankId": "devops-basics", "moduleId": "module-1", "name": "Linux 基础与 Shell", "isEntry": true, "estimatedHours": 10 },
+        { "questionBankId": "devops-basics", "moduleId": "module-2", "name": "Docker 容器化", "estimatedHours": 10 },
+        { "questionBankId": "devops-basics", "moduleId": "module-3", "name": "Kubernetes 基础", "estimatedHours": 12 },
+        { "questionBankId": "devops-basics", "moduleId": "module-4", "name": "CI/CD 与监控", "estimatedHours": 8 }
+      ]
+    }
+  ]
+}

@@ -131,6 +131,22 @@ function AppLayout() {
     }
   };
 
+  // 监听跨页面导航事件（如 Path → Practice）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === 'practice') {
+        setSelectedKey('practice');
+      }
+    };
+    window.addEventListener('navigateToPractice', handler);
+    window.addEventListener('navigateToPage', handler);
+    return () => {
+      window.removeEventListener('navigateToPractice', handler);
+      window.removeEventListener('navigateToPage', handler);
+    };
+  }, []);
+
   const renderPage = () => {
     switch (selectedKey) {
       case 'home': return <Home />;

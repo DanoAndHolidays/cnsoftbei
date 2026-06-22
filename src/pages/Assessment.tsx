@@ -14,7 +14,8 @@ import {
   CheckCircleOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
-import { mockAssessments, mockLearningPath, learningStats, assessmentSuggestions } from '../data/mockData';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+import { mockAssessments, mockLearningPath, learningStats } from '../data/mockData';
 import { loadPracticeState, learningPlan } from '../services/practiceGrader';
 import { tagToChinese, questions } from '../data/pythonQuestionBank';
 import { SYSTEM_EVENTS } from '../services/learningOrchestrator';
@@ -31,11 +32,18 @@ const Assessment: React.FC = () => {
     color: string;
   }
   const [practiceState, setPracticeState] = useState<PracticeState | null>(null);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
 
   // 加载练习数据
   const loadData = () => {
     const state = loadPracticeState();
     setPracticeState(state);
+    const savedProfile = localStorage.getItem('studentProfile');
+    if (savedProfile) {
+      try {
+        setProfile(JSON.parse(savedProfile));
+      } catch { /* ignore */ }
+    }
   };
 
   useEffect(() => {
@@ -214,12 +222,26 @@ const Assessment: React.FC = () => {
         {/* 能力雷达图 */}
         <Col span={12}>
           <Card title="能力雷达图">
-            {/* TODO: 使用 Recharts RadarChart 替换 */}
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d9d9d9' }}>
-              {practiceState && practiceState.results.length > 0
-                ? '雷达图组件待接入'
-                : '开始练习后可查看能力雷达图'}
-            </div>
+            {(practiceState && practiceState.results.length > 0) || profile ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <RadarChart data={getRadarData()}>
+                  <PolarGrid stroke="#d9d9d9" />
+                  <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 11, fill: '#666' }} />
+                  <Radar
+                    name="能力评分"
+                    dataKey="score"
+                    stroke="#722ed1"
+                    fill="#722ed1"
+                    fillOpacity={0.3}
+                    dot={{ r: 4, fill: '#722ed1' }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d9d9d9' }}>
+                开始练习或构建画像后可查看能力雷达图
+              </div>
+            )}
           </Card>
         </Col>
 
@@ -347,7 +369,7 @@ const Assessment: React.FC = () => {
       {/* 智能调整建议 */}
       <Card title="智能调整建议" style={{ marginTop: 24 }}>
         <Timeline
-          items={assessmentSuggestions.map(item => {
+          items={generateSuggestions().map(item => {
             const dotIconMap: Record<string, React.ReactNode> = {
               DashboardOutlined: <DashboardOutlined />,
               CheckCircleOutlined: <CheckCircleOutlined />,

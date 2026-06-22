@@ -118,6 +118,14 @@ const StreamingContentCard: React.FC<{
   );
 };
 
+function loadProfile(): { name?: string; major?: string; grade?: string; dimensions?: { key: string; label: string; value: string; level: string }[] } | null {
+  try {
+    const saved = localStorage.getItem('studentProfile');
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch { return null; }
+}
+
 const Resources: React.FC = () => {
   const { cachedState, saveState } = usePageCache(PAGE_KEY);
 
@@ -237,6 +245,27 @@ const Resources: React.FC = () => {
         },
         controller.signal
       );
+
+      // 生成完成后，注入画像并保存资源
+      const profile = loadProfile();
+      if (profile) {
+        multiAgentScheduler.setProfile(profile as any);
+      }
+
+      // 使用 generateResources 的返回值 results 保存
+      Object.entries(results).forEach(([resType, content]) => {
+        if (content && content.trim()) {
+          saveGeneratedResource({
+            id: `res-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${resType}`,
+            type: resType as ResourceType,
+            topic: learningNeed,
+            content,
+            createdAt: new Date().toISOString(),
+            relatedProfileKeys: profile?.dimensions?.map(d => d.key) || [],
+          });
+        }
+      });
+      notifyResourcesUpdated();
 
       setIsComplete(true);
       message.success('资源生成完成！');
