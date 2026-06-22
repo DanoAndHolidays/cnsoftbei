@@ -25,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# PowerPoint lock files (Windows opens .pptx with ~$ prefix temp file)
+~$*.pptx
+~$*.ppt

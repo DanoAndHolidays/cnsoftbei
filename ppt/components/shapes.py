@@ -68,7 +68,7 @@ def add_badge(slide, left, top, width, height, text: str, *,
 
 
 def add_color_block(slide, left, top, width, height, color: str):
-    """纯色块（无文字，用于智能体介绍页顶部的色条）"""
+    """纯色块（无文字，用于智能体介绍页顶部的色条 / 数据强调）"""
     return add_rect(slide, left, top, width, height, fill=color)
 
 
@@ -78,9 +78,9 @@ def add_divider_line(slide, left, top, width, *, color=theme.DIVIDER, height_pt=
 
 
 def add_card(slide, left, top, width, height, *,
-             fill=theme.ACCENT_BG, border=theme.BORDER,
-             border_width=0.75, radius=0.05):
-    """浅色卡片背景"""
+             fill=theme.BG_PAPER, border=None,
+             border_width=0.75, radius=0.04):
+    """莫兰迪极简卡片：默认无边框，纯色块；调用方可显式传 border 加细线。"""
     shp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
     shp.fill.solid()
     shp.fill.fore_color.rgb = hex_to_rgb(fill)
