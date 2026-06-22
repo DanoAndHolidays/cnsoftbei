@@ -42,4 +42,6 @@ python generate.py --from s08 --to s12
 
 ## 视觉规范
 
-配色、字体、模板：见 `docs/superpowers/specs/2026-06-15-ppt-design.md` §5。
+配色、字体、模板：见 `docs/superpowers/specs/2026-06-22-ppt-style-swap-design.md` §2-3。
+
+> 历史版本（莫兰迪暖色极简版）：`docs/superpowers/specs/2026-06-15-ppt-design.md`
