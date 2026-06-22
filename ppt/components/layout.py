@@ -257,83 +257,79 @@ def apply_chrome(slide, chapter_idx: int, page_num: int):
 
 def build_section_divider(prs, chapter_idx: int) -> int:
     """
-    生成章节首页（极简莫兰迪版：纯米白底 + 巨大衬线数字 + 章节名 + 细线）。
-    返回该页的页码（用于后续 apply_chrome 调用）。
+    章节首页（风格 C）：顶部条+校徽 + 白底 + 巨大"01"数字 + 章节名 + 金色短分割线 + 底部条。
+    返回该页的页码。
     """
     chapter = theme.CHAPTERS[chapter_idx - 1]
+    page_num = len(prs.slides) + 1
 
-    blank_layout = prs.slide_layouts[6]   # 空白版式
+    blank_layout = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank_layout)
 
-    # ---- 米白主背景
-    add_rect(
-        slide,
-        left=0, top=0,
-        width=theme.SLIDE_WIDTH, height=theme.SLIDE_HEIGHT,
-        fill=theme.BG_CREAM,
-    )
+    # 顶部条 + 校徽 + 章节信息
+    apply_chrome_v2(slide, chapter_idx, page_num)
 
-    # ---- 巨大衬线数字（淡米色，几乎透明）
-    # TODO(Task 6): 替换为专用常量 theme.BG_DIVIDER_NUMBER = "#E8E4DA"（见设计稿章节分隔页）
+    # 左侧巨大数字（深蓝 #2D4470，浅灰显示）
     add_textbox(
         slide,
-        left=Pt(120), top=Pt(150),
-        width=Pt(900), height=Pt(420),
+        left=Pt(24), top=Pt(80),
+        width=Pt(540), height=Pt(520),
         text=chapter["num"],
         font_size=320,
         bold=True,
-        font_name=theme.FONT_TITLE,
-        color=theme.BG_CREAM,
+        font_name=theme.FONT_SERIF,
+        color="#E8E4DA",  # 浅米色，与白底区分
     )
 
-    # ---- 章节中文名（衬线大标题）
+    # 章节中文名（深蓝衬线大标题）
     add_textbox(
         slide,
-        left=Pt(220), top=Pt(300),
-        width=Pt(900), height=Pt(80),
+        left=Pt(560), top=Pt(220),
+        width=Pt(700), height=Pt(80),
         text=chapter["title"],
         font_size=32,
         bold=True,
-        font_name=theme.FONT_TITLE,
-        color=theme.TEXT,
+        font_name=theme.FONT_SERIF,
+        color=theme.PRIMARY,
     )
 
-    # ---- 60pt 陶土橙细分割线（替代原 4px 橙条）
+    # 金色短分割线
     add_rect(
         slide,
-        left=Pt(220), top=Pt(390),
+        left=Pt(560), top=Pt(310),
         width=Pt(60), height=Pt(2),
-        fill=theme.TERRACOTTA,
+        fill=theme.ACCENT,
     )
 
-    # ---- 章节英文小字
+    # 章节英文小字
     en_titles = {
-        "01": "Introduction",
+        "01": "Introduction & Requirements",
         "02": "System Design",
         "03": "Five Intelligent Agents",
-        "04": "Key Technologies",
-        "05": "Summary & Outlook",
+        "04": "Key Technologies & Outlook",
+        "05": "Acknowledgement",
     }
     add_textbox(
         slide,
-        left=Pt(220), top=Pt(415),
-        width=Pt(800), height=Pt(36),
+        left=Pt(560), top=Pt(335),
+        width=Pt(700), height=Pt(36),
         text=en_titles[chapter["num"]],
-        font_size=13,
+        font_size=14,
         color=theme.TEXT_MUTED,
+        font_name=theme.FONT_SERIF,
     )
 
-    # ---- 页码范围（极弱化）
+    # 章节页数范围
     add_textbox(
         slide,
-        left=Pt(220), top=Pt(460),
-        width=Pt(800), height=Pt(30),
-        text=f"第 {chapter['pages']} 页",
+        left=Pt(560), top=Pt(385),
+        width=Pt(700), height=Pt(28),
+        text=f"本章范围 · P. {chapter['pages']}",
         font_size=11,
         color=theme.TEXT_SUBTLE,
     )
 
-    return len(prs.slides)
+    return page_num
 
 
 def add_page_title(slide, title: str, subtitle: str = None,
