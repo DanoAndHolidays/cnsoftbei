@@ -1272,27 +1272,27 @@ cd "G:/Save/Grogramming/React/cnsoftbei/learning-agent" && git add ppt/slides/s2
 - [ ] **Step 1: 替换 `apply_chrome` 为 `apply_chrome_v2`**
 
 对 11 个文件，每个文件做：
-- 添加 import：`from components.layout import apply_chrome_v2`
 - 替换函数调用：`apply_chrome(` → `apply_chrome_v2(`
+- 在 `from components.layout import` 行末尾追加 `apply_chrome_v2`（如果还没有）
+
+注意：因为 `apply_chrome_v2(` 包含子串 `apply_chrome(`，不能直接 `s/apply_chrome(/apply_chrome_v2(/g`。改用临时占位符策略：
 
 ```bash
 cd "G:/Save/Grogramming/React/cnsoftbei/learning-agent/ppt/slides" && \
 for f in s04_background.py s05_requirements.py s07_architecture.py s08_tech_stack.py \
          s10_agent_profile.py s11_agent_resource.py s12_agent_path.py s13_agent_tutor.py \
          s16_tech_multi_agent.py s17_tech_streaming.py s18_tech_sync.py; do
-  python -c "
-import re
-p = '$f'
-with open(p, 'r', encoding='utf-8') as fh: c = fh.read()
-# 1. 替换函数名
-c = c.replace('apply_chrome(', 'apply_chrome_v2(')
-# 2. 替换 import 行
-if 'apply_chrome_v2' in c and 'apply_chrome_v2' not in c.split('import')[0]:
-    c = re.sub(r'(from components\.layout import [^\n]+)', r'\1' if 'apply_chrome_v2' in r'\1' else r'\1' + ' apply_chrome_v2' if 'apply_chrome' in r'\1' else r'\1', c)
-# 更简单的写法：单独处理 import
-with open(p, 'w', encoding='utf-8') as fh: fh.write(c)
-print(p, 'done')
-"
+  # 1. 先把 apply_chrome_v2 占位（防误伤）
+  sed -i 's/apply_chrome_v2/__APPLY_CHROME_V2__/g' "$f"
+  # 2. 再把 apply_chrome( 升级成 v2
+  sed -i 's/apply_chrome(/apply_chrome_v2(/g' "$f"
+  # 3. 还原占位
+  sed -i 's/__APPLY_CHROME_V2__/apply_chrome_v2/g' "$f"
+  # 4. 在 import 行追加（如果还没导入 v2）
+  if ! grep -q 'apply_chrome_v2' "$f"; then
+    sed -i 's/from components\.layout import \(.*\)apply_chrome$/from components.layout import \1apply_chrome apply_chrome_v2/' "$f"
+  fi
+  echo "$f done"
 done
 ```
 
