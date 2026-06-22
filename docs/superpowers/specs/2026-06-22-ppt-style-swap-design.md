@@ -69,7 +69,8 @@ FONT_MONO = "JetBrains Mono"
 ```python
 HEADER_BAR_HEIGHT = Pt(28)             # 顶部条高度
 FOOTER_BAR_HEIGHT = Pt(18)             # 底部条高度
-BAR_GRADIENT = ("#002060", "#2D4470")  # 顶部条渐变方向（左深→右浅）
+HEADER_BAR_COLOR = "#002060"           # 顶部条纯色（python-pptx 限制：实际无渐变；mockup 中渐变效果由半透明叠加近似）
+FOOTER_BAR_COLOR = "#002060"           # 底部条纯色
 
 # 校徽（图片1.jpg 461×132，比例 3.49）
 CREST_WIDTH  = Pt(84)
@@ -158,9 +159,17 @@ def add_crest(slide):
         )
     except Exception:
         # 降级方案：白色矩形 + 「校徽」文字
-        add_rect(slide, left=..., top=..., width=..., height=..., fill=WHITE)
-        add_textbox(slide, left=..., top=..., text="校徽", font_size=9,
-                    color=PRIMARY_DEEP, align=CENTER, bold=True)
+        add_rect(slide,
+                 left=theme.SLIDE_WIDTH - theme.CREST_MARGIN_R - theme.CREST_WIDTH,
+                 top=theme.CREST_MARGIN_T,
+                 width=theme.CREST_WIDTH, height=theme.CREST_HEIGHT,
+                 fill=theme.WHITE)
+        add_textbox(slide,
+                    left=theme.SLIDE_WIDTH - theme.CREST_MARGIN_R - theme.CREST_WIDTH,
+                    top=theme.CREST_MARGIN_T + Pt(4),
+                    width=theme.CREST_WIDTH, height=Pt(16),
+                    text="校徽", font_size=9, color=theme.PRIMARY_DEEP,
+                    align=PP_ALIGN.CENTER, bold=True)
 ```
 
 ### 3.3 新增 `set_run_font(run, role)` — 字体 fallback 工具
@@ -251,7 +260,7 @@ D 组改动主要是**机械替换常量名**，可批量 sed 或 IDE 重构。�
 
 | 元素 | 位置 | 尺寸 | 内容 |
 |---|---|---|---|
-| 顶部条 | y=0 | 全宽 × 28pt | 深蓝渐变 |
+| 顶部条 | y=0 | 全宽 × 28pt | 深蓝纯色 `#002060` |
 | 章节信息 | top=Pt(6), left=Pt(14) | 800pt × 16pt | `{num}    {title}`（双 run） |
 | 校徽 | top=Pt(2), right=Pt(14) | 84pt × 24pt | `assets/图片1.jpg` |
 | 底部条 | y=SLIDE_HEIGHT - 18pt | 全宽 × 18pt | 深蓝纯色 |
