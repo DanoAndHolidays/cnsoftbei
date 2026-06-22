@@ -1,12 +1,11 @@
 """
-PPT 视觉常量与占位信息。
+PPT 视觉常量与占位信息 · 莫兰迪暖色极简版。
 
 所有颜色、字体、尺寸常量集中在此；所有 slide 和组件都从这里导入，
 改主题只需要改这一个文件。
 """
 
 from pptx.util import Pt, Emu
-from pptx.enum.shapes import MSO_SHAPE
 
 
 # ============ 尺寸（EMU，1 inch = 914400 EMU，1 pt = 12700 EMU）============
@@ -15,50 +14,57 @@ from pptx.enum.shapes import MSO_SHAPE
 SLIDE_WIDTH = Emu(16256000)   # 1280 pt = 17.78 inch
 SLIDE_HEIGHT = Emu(9144000)   # 720 pt = 10 inch
 
-# 全局边距
-MARGIN_LR = Pt(60)            # 左右 60pt
-MARGIN_TB = Pt(50)            # 上下 50pt
-
 # 页眉/页脚高度
-HEADER_HEIGHT = Pt(24)
-FOOTER_HEIGHT = Pt(20)
+HEADER_HEIGHT = Pt(20)
+FOOTER_HEIGHT = Pt(18)
 
 # 内容区
 CONTENT_TOP = Pt(80)
 CONTENT_BOTTOM = Pt(720)
 
 
-# ============ 基础调色板（A 学术蓝白）============
+# ============ 商务现代调色板（深蓝 + 金黄 + 深红）============
 
-# 蓝
-PRIMARY = "#1890FF"        # 主蓝
-PRIMARY_DARK = "#002766"   # 深蓝（标题、数字）
-PRIMARY_LIGHT = "#E6F4FF"  # 极浅蓝（hover/选中）
-ACCENT_BG = "#F0F5FF"      # 浅蓝灰（卡片底/分区背景）
+# 背景
+BG_CREAM = "#FFFFFF"           # 主背景（白）
+BG_DEEP = "#FFFFFF"            # 兼容旧名
+BG_PAPER = "#F4F1EA"           # 卡片底（淡米）
 
-# 中性
+# 文字
+TEXT = "#1A1A1A"               # 主文字（近黑）
+TEXT_MUTED = "#444444"         # 副文字
+TEXT_SUBTLE = "#999999"        # 弱化文字
+TEXT_FOOTER_WEAK = "#999999"   # 底部条项目名
+
+# 强调（商务现代 4 色）
+PRIMARY_DEEP = "#002060"       # 海军蓝（顶部条主色）
+PRIMARY = "#2D4470"            # 深蓝（章节标题）
+ACCENT = "#D3A518"             # 金黄（章节编号、强调分割线、页码）
+ACCENT2 = "#C00000"            # 深红（备用强调）
+
+# 兼容旧代码用
+PRIMARY_DARK = TEXT
+PRIMARY_LIGHT = BG_PAPER
+ACCENT_BG = BG_PAPER
+SUCCESS = PRIMARY
+WARNING = ACCENT
+ERROR = "#A65D5D"
+
 WHITE = "#FFFFFF"
-BG = "#FFFFFF"
-TEXT = "#262626"           # 主文本（近黑）
-TEXT_MUTED = "#595959"     # 副文本（深灰）
-TEXT_SUBTLE = "#8C8C8C"    # 弱化文本（中灰）
-BORDER = "#D9D9D9"         # 浅灰描边
-DIVIDER = "#F0F0F0"        # 更浅的分隔线
-
-# 强调（用于 callout、警示）
-SUCCESS = "#52C41A"
-WARNING = "#FAAD14"
-ERROR = "#FF4D4F"
+WHITE_ON_DARK = "#FFFFFF"
+BG = BG_CREAM
+BORDER = "#E5DDD0"
+DIVIDER = "#E5DDD0"
 
 
-# ============ 智能体五色（仅第三部分使用）============
+# ============ 智能体配色（莫兰迪 2 色为主，辅助色点缀）============
 
 AGENT_COLORS = {
-    "profile":    "#FA8C16",  # 画像 🟠 橙
-    "resource":   "#52C41A",  # 资源 🟢 绿
-    "path":       "#1890FF",  # 路径 🔵 蓝
-    "tutor":      "#722ED1",  # 辅导 🟣 紫
-    "assessment": "#13C2C2",  # 评估 💠 青
+    "profile":    PRIMARY_DEEP,
+    "resource":   ACCENT,
+    "path":       PRIMARY,
+    "tutor":      ACCENT2,
+    "assessment": PRIMARY_DEEP,
 }
 
 AGENT_NAMES_CN = {
@@ -77,47 +83,80 @@ AGENT_NAMES_EN = {
     "assessment": "Assessment Agent",
 }
 
+# 极简风格不再用 emoji 装饰，但保留字段避免引用错误
 AGENT_EMOJI = {
-    "profile":    "🟠",
-    "resource":   "🟢",
-    "path":       "🔵",
-    "tutor":      "🟣",
-    "assessment": "💠",
+    "profile":    "",
+    "resource":   "",
+    "path":       "",
+    "tutor":      "",
+    "assessment": "",
 }
 
 
-# ============ 字体 ============
+# ============ 字体（OPPO Sans 首选 + 系统 fallback）============
 
-FONT_FAMILY = "微软雅黑"
-FONT_MONO = "Consolas"
-FONT_FALLBACK = "Arial"   # Mac/Linux 备选
+FONT_HEADING = "OPPO Sans B"          # 标题首选
+FONT_SERIF = "Weibei SC"              # 衬线首选
+FONT_BODY = "OPPO Sans"               # 正文首选
+FONT_MONO = "JetBrains Mono"          # 代码
+
+FONT_FALLBACK_HEADING = "Microsoft YaHei"
+FONT_FALLBACK_SERIF = "SimSun"
+FONT_FALLBACK_BODY = "Microsoft YaHei"
+FONT_FALLBACK_MONO = "Consolas"
+
+# 兼容旧代码引用
+FONT_FAMILY = FONT_BODY
+FONT_TITLE = FONT_SERIF
+FONT_FALLBACK = FONT_FALLBACK_BODY
+
+
+# ============ 字号（整体小一档，显克制）============
 
 FONT_SIZES = {
-    "cover_title":   44,   # 封面大标题
-    "page_title":    28,   # 页面标题
-    "subtitle":      18,   # 副标题
-    "section":       16,   # 小节标题
-    "body":          14,   # 正文
-    "small":         12,   # 注脚
-    "tiny":          10,   # 页码/页眉
-    "code":          11,   # 代码
-    "data_huge":     36,   # 大数据
-    "data_big":      24,   # 中数据
+    "cover_title":   52,
+    "page_title":    30,
+    "subtitle":      14,
+    "section":       16,
+    "body":          13,
+    "small":         11,
+    "tiny":          9,
+    "code":          11,
+    "data_huge":     44,
+    "data_big":      28,
 }
 
 
-# ============ 章节信息 ============
+# ============ 章节信息（统一陶土橙，不再 5 色）============
 
 CHAPTERS = [
-    {"num": "01", "title": "项目导入",        "color": PRIMARY,    "pages": "1-5"},
-    {"num": "02", "title": "系统设计",        "color": PRIMARY,    "pages": "6-7"},
-    {"num": "03", "title": "五大智能体",      "color": "#FA8C16",  "pages": "8-12"},
-    {"num": "04", "title": "关键技术深挖",    "color": "#722ED1",  "pages": "13-15"},
-    {"num": "05", "title": "总结与展望",      "color": "#13C2C2",  "pages": "16-19"},
+    {"num": "01", "title": "项目导入与需求对标",      "color": ACCENT,  "pages": "3 - 5"},
+    {"num": "02", "title": "系统架构与技术选型",      "color": ACCENT,  "pages": "6 - 8"},
+    {"num": "03", "title": "五大核心智能体设计",      "color": ACCENT,  "pages": "9 - 14"},
+    {"num": "04", "title": "关键技术深挖与总结展望",  "color": ACCENT,  "pages": "15 - 20"},
+    {"num": "05", "title": "致谢",                   "color": ACCENT,  "pages": "21"},
 ]
 
 
-# ============ 占位信息（用户在 PowerPoint 里改或在此处改后重跑）============
+# ============ 顶部/底部条 + 校徽装饰常量 ============
+
+HEADER_BAR_HEIGHT = Pt(28)
+FOOTER_BAR_HEIGHT = Pt(18)
+HEADER_BAR_COLOR = "#002060"
+FOOTER_BAR_COLOR = "#002060"
+
+CREST_WIDTH  = Pt(84)
+CREST_HEIGHT = Pt(24)
+CREST_MARGIN_R = Pt(14)
+CREST_MARGIN_T = Pt(2)
+
+HEADER_CHAPTER_FONT_SIZE = 8.5
+
+MARGIN_LR = Pt(24)
+MARGIN_TB = Pt(28)
+
+
+# ============ 占位信息 ============
 
 COVER_INFO = {
     "team_name":   "[队伍名称]",
@@ -129,7 +168,7 @@ COVER_INFO = {
     "contact":     "[邮箱 / GitHub]",
 }
 
-TOTAL_PAGES = 19
+TOTAL_PAGES = 21
 
 
 # ============ 截图引用（来自 assets/screenshot/）============
@@ -145,7 +184,7 @@ SCREENSHOTS = {
     "tutor":     "PixPin_2026-06-15_10-37-20.png",
 }
 
-SCREENSHOT_DIR = "../assets/screenshot"   # 相对于 ppt/ 目录
+SCREENSHOT_DIR = "../assets/screenshot"
 
 
 # ============ 辅助函数 ============
