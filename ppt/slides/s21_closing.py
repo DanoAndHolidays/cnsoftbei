@@ -1,7 +1,6 @@
 """
-第 21 页 · 致谢 · 风格 C 商务现代版。
-
-白底 + 顶部条 + 校徽 + 大字"感谢聆听" + 金色装饰 + Q&A 提示。
+第 21 页 · 致谢 · 学术商务版。
+深蓝全幅 + 白字 + 项目信息 + Q&A。
 """
 
 from pptx.util import Pt
@@ -9,68 +8,78 @@ from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 
 from components import theme
-from components.layout import add_textbox, add_rect, apply_chrome_v2, hex_to_rgb
+from components.layout import add_textbox, add_rect, hex_to_rgb
 
 
 def build(prs):
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
 
-    # 顶部条 + 校徽 + 章节信息
-    apply_chrome_v2(slide, chapter_idx=5, page_num=21)
+    # 深蓝全幅
+    add_rect(slide, left=Pt(0), top=Pt(0),
+             width=theme.SLIDE_WIDTH, height=theme.SLIDE_HEIGHT,
+             fill=theme.NAVY)
 
-    # ─── 大字"感谢聆听"（深蓝衬线） ───
-    add_textbox(
-        slide, left=Pt(80), top=Pt(180), width=Pt(1100), height=Pt(140),
-        text="感谢聆听",
-        font_size=80, bold=True,
-        font_name=theme.FONT_SERIF,
-        color=theme.PRIMARY,
-        align=PP_ALIGN.CENTER,
-    )
+    # 顶部红色细线
+    add_rect(slide, left=Pt(0), top=Pt(0),
+             width=theme.SLIDE_WIDTH, height=Pt(2.5),
+             fill=theme.RED)
 
-    # ─── 英文小字 ───
-    add_textbox(
-        slide, left=Pt(80), top=Pt(330), width=Pt(1100), height=Pt(36),
-        text="THANK YOU FOR YOUR ATTENTION",
-        font_size=14, color=theme.TEXT_MUTED,
-        align=PP_ALIGN.CENTER,
-        font_name=theme.FONT_SERIF,
-    )
+    # 大字
+    add_textbox(slide, left=Pt(80), top=Pt(60), width=Pt(800), height=Pt(90),
+                text="感谢聆听", font_size=64, bold=True,
+                color=theme.WHITE, align=PP_ALIGN.CENTER)
 
-    # ─── 金色短横线（居中） ───
-    add_rect(
-        slide, left=Pt(620), top=Pt(380),
-        width=Pt(60), height=Pt(2),
-        fill=theme.ACCENT,
-    )
+    add_textbox(slide, left=Pt(80), top=Pt(156), width=Pt(800), height=Pt(24),
+                text="THANK YOU FOR YOUR ATTENTION",
+                font_size=14, color="#8899BB", align=PP_ALIGN.CENTER)
 
-    # ─── Q&A 提示 ───
-    add_textbox(
-        slide, left=Pt(80), top=Pt(420), width=Pt(1100), height=Pt(40),
-        text="欢迎评委老师批评指正 · 提问交流",
-        font_size=20, color=theme.TEXT,
-        align=PP_ALIGN.CENTER,
-    )
+    add_rect(slide, left=Pt(460), top=Pt(190), width=Pt(40), height=Pt(2.5),
+             fill=theme.RED)
 
-    # ─── 底部信息（队伍 + 学校） ───
-    add_textbox(
-        slide, left=Pt(80), top=Pt(540), width=Pt(1100), height=Pt(28),
-        text=f"{theme.COVER_INFO['team_name']}  ·  {theme.COVER_INFO['school']}",
-        font_size=14, color=theme.TEXT_MUTED,
-        align=PP_ALIGN.CENTER,
-    )
+    # 项目概述
+    add_textbox(slide, left=Pt(80), top=Pt(222), width=Pt(800), height=Pt(22),
+                text="项目概述", font_size=18, bold=True, color=theme.WHITE, align=PP_ALIGN.CENTER)
 
-    add_textbox(
-        slide, left=Pt(80), top=Pt(575), width=Pt(1100), height=Pt(24),
-        text=f"{theme.COVER_INFO['date']}  ·  第十五届中国软件杯 · A3 赛题",
-        font_size=11, color=theme.TEXT_SUBTLE,
-        align=PP_ALIGN.CENTER,
-    )
+    add_textbox(slide, left=Pt(100), top=Pt(254), width=Pt(760), height=Pt(60),
+                text="赛题：第十五届中国软件杯·A3赛题  |  作品：学习智能体系统\n"
+                     "技术栈：React 19 + TypeScript + Vite 5 + Ant Design 6 + Recharts\n"
+                     "核心数据：576题库 · 92%判分一致率 · <2s首字延迟 · 0严重缺陷",
+                font_size=13, color="#AABBCC", align=PP_ALIGN.CENTER)
 
-    # ─── 半透明装饰圆（左下角） ───
-    shp = slide.shapes.add_shape(MSO_SHAPE.OVAL, Pt(-80), Pt(500), Pt(240), Pt(240))
+    # 致谢
+    add_textbox(slide, left=Pt(80), top=Pt(340), width=Pt(800), height=Pt(22),
+                text="致谢", font_size=18, bold=True, color=theme.WHITE, align=PP_ALIGN.CENTER)
+
+    add_textbox(slide, left=Pt(100), top=Pt(370), width=Pt(760), height=Pt(50),
+                text="感谢评委老师的辛勤评审  |  感谢指导老师的悉心指导\n"
+                     "本作品使用：React·TypeScript·Vite·Ant Design·Recharts·python-pptx·MiniMax API",
+                font_size=12, color="#8899BB", align=PP_ALIGN.CENTER)
+
+    # Q&A
+    add_rect(slide, left=Pt(380), top=Pt(440), width=Pt(200), height=Pt(40),
+             fill=theme.RED)
+    add_textbox(slide, left=Pt(380), top=Pt(442), width=Pt(200), height=Pt(36),
+                text="Q & A", font_size=20, bold=True,
+                color=theme.WHITE, align=PP_ALIGN.CENTER)
+
+    # 底部信息
+    add_textbox(slide, left=Pt(80), top=Pt(500), width=Pt(800), height=Pt(22),
+                text=f"{theme.COVER_INFO['team_name']}  ·  {theme.COVER_INFO['school']}",
+                font_size=15, bold=True, color=theme.WHITE, align=PP_ALIGN.CENTER)
+    add_textbox(slide, left=Pt(80), top=Pt(522), width=Pt(800), height=Pt(16),
+                text=f"{theme.COVER_INFO['date']}  ·  第十五届中国软件杯·A3赛题  ·  {theme.COVER_INFO['presenter']} 汇报",
+                font_size=11, color="#667799", align=PP_ALIGN.CENTER)
+
+    # 装饰圆
+    shp = slide.shapes.add_shape(MSO_SHAPE.OVAL, Pt(-60), Pt(380), Pt(180), Pt(180))
     shp.fill.solid()
-    shp.fill.fore_color.rgb = hex_to_rgb(theme.ACCENT)
-    shp.fill.transparency = 0.85
+    shp.fill.fore_color.rgb = hex_to_rgb("#2A4A9A")
+    shp.fill.transparency = 0.75
     shp.line.fill.background()
+
+    shp2 = slide.shapes.add_shape(MSO_SHAPE.OVAL, Pt(840), Pt(380), Pt(180), Pt(180))
+    shp2.fill.solid()
+    shp2.fill.fore_color.rgb = hex_to_rgb("#2A4A9A")
+    shp2.fill.transparency = 0.75
+    shp2.line.fill.background()

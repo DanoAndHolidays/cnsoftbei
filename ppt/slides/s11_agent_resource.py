@@ -1,13 +1,12 @@
 """
-第 9 页 · 资源生成智能体（Resource Agent）。
+第 11 页 · 资源生成智能体 · 学术商务版。
 """
 
-import os
 from pptx.util import Pt
 
 from components import theme
-from components.layout import add_textbox, add_rect, add_page_title, apply_chrome, apply_chrome_v2
-from components.shapes import add_card, add_color_block
+from components.layout import add_textbox, add_rect, apply_chrome_v2, add_bottom_bar
+from components.shapes import add_card
 from slides.s10_agent_profile import _screenshot
 
 
@@ -16,74 +15,62 @@ def build(prs):
     slide = prs.slides.add_slide(blank)
     apply_chrome_v2(slide, chapter_idx=3, page_num=11)
 
-    color = theme.AGENT_COLORS["resource"]
+    color = theme.NAVY
     name = theme.AGENT_NAMES_CN["resource"]
     en = theme.AGENT_NAMES_EN["resource"]
-    emoji = theme.AGENT_EMOJI["resource"]
 
-    # 标题区
-    add_color_block(slide, Pt(80), Pt(70), Pt(10), Pt(28), color)
-    add_textbox(slide, left=Pt(100), top=Pt(70), width=Pt(900), height=Pt(38),
-                text=f"{name} ({en})", font_size=24, bold=True,
-                font_name=theme.FONT_TITLE, color=theme.PRIMARY)
-    add_textbox(slide, left=Pt(100), top=Pt(110), width=Pt(600), height=Pt(20),
-                text=f"{emoji} 基于画像的 6 类定制资源 · 多智能体流水线",
-                font_size=13, color=theme.TEXT_MUTED)
+    add_rect(slide, Pt(40), Pt(56), Pt(32), Pt(3), fill=color)
+    add_textbox(slide, left=Pt(40), top=Pt(64), width=Pt(860), height=Pt(38),
+                text=f"{name}  ({en})", font_size=26, bold=True, color=theme.DARK_TEXT)
+    add_textbox(slide, left=Pt(40), top=Pt(104), width=Pt(860), height=Pt(20),
+                text="系统的\"生产层\" — 基于画像定制 6 类资源 · 多智能体流水线协作 · SSE 实时状态回传",
+                font_size=14, color=theme.TEXT_MUTED)
 
-    # 左侧截图
-    _screenshot(slide, theme.SCREENSHOTS["resource1"], Pt(80), Pt(160), Pt(540), Pt(440))
+    _screenshot(slide, theme.SCREENSHOTS["resource1"], Pt(40), Pt(130), Pt(520), Pt(350))
 
-    # 右侧三段式
-    right_x = Pt(680)
-    right_w = Pt(540)
+    rx = Pt(590)
+    rw = Pt(330)
 
-    # 角色定位
-    add_card(slide, right_x, Pt(160), right_w, Pt(100), fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(170), right_w - Pt(32), Pt(24),
-                text="角色定位", font_size=14, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(196), right_w - Pt(32), Pt(56),
-                text="基于画像为每个学习主题生成 6 类定制资源，多智能体协作流水线。",
-                font_size=12, color=theme.TEXT)
+    # 卡片 1
+    add_card(slide, rx, Pt(130), rw, Pt(70), fill=theme.LIGHT_GRAY)
+    add_textbox(slide, rx + Pt(14), Pt(136), rw - Pt(28), Pt(20),
+                text="角色定位 — 系统的\"生产层\"", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(158), rw - Pt(28), Pt(36),
+                text="基于画像为每个学习主题生成6类定制资源。Planner拆解任务→5类Worker并行执行。",
+                font_size=12, color=theme.DARK_TEXT)
 
-    # 6 种资源类型（2×3 网格）
-    types_card_h = Pt(200)
-    add_card(slide, right_x, Pt(275), right_w, types_card_h, fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(285), right_w - Pt(32), Pt(24),
-                text="6 种资源类型", font_size=14, bold=True, color=color)
-
+    # 卡片 2：6 种资源
+    add_card(slide, rx, Pt(210), rw, Pt(142), fill=theme.LIGHT_GRAY)
+    add_textbox(slide, rx + Pt(14), Pt(216), rw - Pt(28), Pt(20),
+                text="6 种资源类型（2×3 网格）", font_size=14, bold=True, color=color)
     types = [
-        ("document", "文档"),
-        ("mindmap",  "思维导图"),
-        ("quiz",     "测验"),
-        ("reading",  "阅读"),
-        ("video",    "视频脚本"),
-        ("codeCase", "代码案例"),
+        ("文档", "结构化Markdown"), ("思维导图", "Mermaid格式"),
+        ("测验", "自动判分+AI评阅"), ("阅读", "深度阅读+概念标注"),
+        ("视频脚本", "分镜+时间戳"), ("代码案例", "可执行+注释"),
     ]
+    for i, (cn_t, desc) in enumerate(types):
+        col = i % 3
+        row = i // 3
+        x = rx + Pt(14) + col * Pt(108)
+        y = Pt(244) + row * Pt(40)
+        add_rect(slide, x, y + Pt(4), Pt(2), Pt(14), fill=color)
+        add_textbox(slide, x + Pt(8), y, Pt(80), Pt(20),
+                    text=cn_t, font_size=12, bold=True, color=theme.NAVY)
+        add_textbox(slide, x + Pt(8), y + Pt(18), Pt(98), Pt(20),
+                    text=desc, font_size=10, color=theme.TEXT_MUTED)
 
-    col_w_inner = Pt(248)
-    row_h = Pt(40)
-    grid_top = Pt(320)
+    # 卡片 3：协作流水线
+    add_card(slide, rx, Pt(362), rw, Pt(120), fill=theme.LIGHT_GRAY)
+    add_textbox(slide, rx + Pt(14), Pt(368), rw - Pt(28), Pt(20),
+                text="多智能体协作流水线", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(390), rw - Pt(28), Pt(86),
+                text="· Planner Agent解析目标→拆解子任务\n"
+                     "· 5类Worker并行执行，各负责一类资源\n"
+                     "· SSE实时回传每个Worker状态\n"
+                     "· 失败自动重试3次（指数退避）\n"
+                     "· AbortSignal一键取消\n"
+                     "· 6 Worker并发完成 < 8s",
+                font_size=11, color=theme.DARK_TEXT)
 
-    for i, (en_t, cn_t) in enumerate(types):
-        col = i % 2
-        row = i // 2
-        x = right_x + Pt(16) + col * col_w_inner
-        y = grid_top + row * row_h
-        # 左侧色块
-        add_rect(slide, x, y + Pt(8), Pt(6), Pt(18), fill=color)
-        add_textbox(slide, x + Pt(14), y, Pt(220), Pt(20),
-                    text=cn_t, font_size=13, bold=True, color=theme.PRIMARY)
-        add_textbox(slide, x + Pt(14), y + Pt(20), Pt(220), Pt(16),
-                    text=en_t, font_size=10, color=theme.TEXT_MUTED)
-
-    # 多智能体协作
-    add_card(slide, right_x, Pt(490), right_w, Pt(160),
-             fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(500), right_w - Pt(32), Pt(24),
-                text="多智能体协作（实时状态）", font_size=14, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(528), right_w - Pt(32), Pt(120),
-                text="· planner 拆任务，5 类 worker 并行\n"
-                     "· SSE 流式回传各 worker 状态（pending/running/done）\n"
-                     "· 失败自动重试，最多 3 次\n"
-                     "· 全部完成前允许用户中断（AbortSignal）",
-                font_size=11, color=theme.TEXT)
+    add_bottom_bar(slide, "资源智能体将\"千人千面\"落地为\"一人一案\"：每个学生获得画像驱动的专属学习资源",
+                   highlight_words=["千人千面", "一人一案", "专属"])

@@ -1,100 +1,94 @@
 """
-第 13 页 · 关键技术 1：多智能体协同框架。
-
-布局：双列等宽（各 540pt）
-- 左：核心类签名（6 行）+ 状态机 & 关键设计 callout
-- 右：5 智能体事件总线协作流程 + 协作矩阵
-底部：单行 callout 总结
+第 16 页 · 多智能体协同框架 · 学术商务版。
+双列布局 + 底部金句。
 """
 
 from pptx.util import Pt
 from pptx.enum.text import PP_ALIGN
-from pptx.enum.text import MSO_ANCHOR
 
 from components import theme
-from components.layout import add_textbox, add_rect, add_page_title
-from components.shapes import add_card, add_color_block
+from components.layout import add_textbox, add_rect, add_page_title, apply_chrome_v2, add_bottom_bar
+from components.shapes import add_card
 from components.mini_diagram import render_ascii_block
 
 
 def build(prs):
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
-    from components.layout import apply_chrome, apply_chrome_v2
     apply_chrome_v2(slide, chapter_idx=4, page_num=16)
 
-    add_page_title(
-    slide, "多智能体协同框架与事件总线",
-    subtitle="MultiAgentScheduler + EventEmitter 完全解耦，代码精简 40%",
-    accent_color=theme.ACCENT_RED,
-    )
+    add_page_title(slide, "多智能体协同框架与事件总线",
+                   subtitle="MultiAgentScheduler + EventEmitter 完全解耦 · 代码精简 40%",
+                   accent_color=theme.NAVY)
 
- # 双列等宽布局：左 60-600 (W=540)，右 640-1180 (W=540)，中间 40pt 间隔
-    LEFT_X, LEFT_W = Pt(60), Pt(540)
-    RIGHT_X, RIGHT_W = Pt(640), Pt(540)
+    LX, LW = Pt(40), Pt(440)
+    RX, RW = Pt(510), Pt(410)
 
- # ---- 左上：核心类签名
-    add_textbox(slide, LEFT_X, Pt(170), LEFT_W, Pt(24),
-    text="MultiAgentScheduler 核心类", font_size=16, bold=True, color=theme.ACCENT_RED)
+    # ── 左上：核心类 ──
+    add_textbox(slide, LX, Pt(130), LW, Pt(22),
+                text="MultiAgentScheduler 核心类", font_size=15, bold=True, color=theme.NAVY)
     code = """class MultiAgentScheduler {
-    agents: Map<Role, Agent> // 角色 智能体
-    eventBus: EventEmitter // 事件总线
-    registerAgent(role, agent) // 注册智能体
-    dispatch(role, task): Promise // 单智能体执行
-    runPipeline(tasks): Result[] // 流水线式协作
+    agents: Map<Role, Agent>      // 角色映射
+    eventBus: EventEmitter        // 事件总线
+
+    registerAgent(role, agent)
+    dispatch(role, task) → Result
+    runPipeline(tasks) → Result[]
+    getAgentStates() → Map
 }"""
-    render_ascii_block(slide, LEFT_X, Pt(200), LEFT_W, Pt(170), code,
-    title="TypeScript", title_color=theme.ACCENT_RED,
-    font_size=12, border_color=theme.ACCENT_RED, fill=theme.BG_PAPER)
+    render_ascii_block(slide, LX, Pt(156), LW, Pt(140), code,
+                       title="TypeScript 核心接口", title_color=theme.NAVY,
+                       font_size=11, border_color=theme.NAVY, fill=theme.LIGHT_GRAY)
 
- # ---- 左下：状态机 & 关键设计
-    add_textbox(slide, LEFT_X, Pt(390), LEFT_W, Pt(24),
-    text="状态机 & 关键设计", font_size=16, bold=True, color=theme.ACCENT_RED)
-    add_card(slide, LEFT_X, Pt(420), LEFT_W, Pt(230),
-    fill=theme.BG_PAPER, border=theme.ACCENT_RED, border_width=1.0)
-    add_color_block(slide, LEFT_X, Pt(420), Pt(6), Pt(230), theme.ACCENT_RED)
-    add_textbox(
-    slide, LEFT_X + Pt(20), Pt(435), LEFT_W - Pt(32), Pt(205),
-    text="planner 拆任务 派发给 6 个 worker 并行\n\n"
-    "worker 状态：pending running done / failed\n\n"
-    "失败自动重试 3 次（指数退避）\n\n"
-    "事件总线广播进度 UI 实时更新 5 worker 状态\n\n"
-    "解耦通信：仅通过 eventBus，新增智能体只需 registerAgent()",
-    font_size=13, color=theme.TEXT,
-    )
+    # ── 左下：状态机 ──
+    add_textbox(slide, LX, Pt(306), LW, Pt(22),
+                text="状态机 & 关键设计决策", font_size=15, bold=True, color=theme.NAVY)
+    add_card(slide, LX, Pt(332), LW, Pt(158), fill=theme.LIGHT_GRAY, border=theme.NAVY, border_width=1.0)
+    add_rect(slide, LX, Pt(332), Pt(3), Pt(158), fill=theme.NAVY)
+    add_textbox(slide, LX + Pt(12), Pt(340), LW - Pt(20), Pt(144),
+                text="【Planner→Worker 调度模型】\n"
+                     "· Planner解析目标→拆解子任务队列\n"
+                     "· 6 Worker并行，状态：pending→running→done\n"
+                     "· failed自动重试3次（指数退避1s→2s→4s）\n\n"
+                     "【事件总线解耦 — 核心决策】\n"
+                     "· 5智能体零硬编码依赖，仅通过EventEmitter通信\n"
+                     "· 新增智能体只需registerAgent()即可接入\n"
+                     "· ResourceGenerator复用调度逻辑\n\n"
+                     "效果：代码量-40%，新增智能体成本-80%",
+                font_size=12, color=theme.DARK_TEXT)
 
- # ---- 右上：5 智能体事件总线协作（精简 ASCII 流程）
-    add_textbox(slide, RIGHT_X, Pt(170), RIGHT_W, Pt(24),
-    text="5 智能体事件总线协作", font_size=16, bold=True, color=theme.ACCENT_RED)
-    diagram = """Profile Agent ── Resource Agent ── Path Agent
+    # ── 右上：事件总线图 ──
+    add_textbox(slide, RX, Pt(130), RW, Pt(22),
+                text="5 智能体事件总线协作", font_size=15, bold=True, color=theme.NAVY)
+    diagram = """Profile ── Resource ── Path
     │ profile:updated │ resource:done │ path:scheduled
+    ▼         ▼         ▼
+    ┌─────── EventEmitter (事件总线) ───────┐
+    │ 解耦通信：只与事件总线交互，不直接依赖 │
+    └───────────────────────────────────────┘
+    │         │         │
+    ▼         ▼         ▼
+Assessment ◄─ Tutor ◄───┘
+    │ assessment:done  │ tutor:answered
 
-Assessment ───────────── Tutor Agent ──────┘
-    │ │ tutor:answered
-    │ 
-    └───── 答题反馈回流 ──── 推荐新路径
+闭环：做题→profile:updated→推荐新路径→循环"""
+    render_ascii_block(slide, RX, Pt(156), RW, Pt(198), diagram,
+                       title="事件总线解耦架构", font_size=10,
+                       border_color=theme.NAVY, fill=theme.WHITE)
 
-事件总线 EventEmitter：解耦通信，5 智能体共享进度"""
-    render_ascii_block(slide, RIGHT_X, Pt(200), RIGHT_W, Pt(220), diagram,
-    title="", font_size=11, border_color=theme.ACCENT_RED, fill=theme.WHITE)
+    # ── 右下：协作矩阵 ──
+    add_textbox(slide, RX, Pt(366), RW, Pt(22),
+                text="5 智能体协作矩阵", font_size=15, bold=True, color=theme.NAVY)
+    table = ("智能体      输入            输出         事件\n"
+             "────────────────────────────────────────\n"
+             "Profile     对话/做题结果   6维画像      profile:updated\n"
+             "Resource    学习目标+画像   6类资源      resource:generated\n"
+             "Path        画像+目标方向   结构化路径   path:scheduled\n"
+             "Tutor       问题+历史+画像  答案+思考    tutor:answered\n"
+             "Assessment  practiceState  评估+建议    assessment:done")
+    render_ascii_block(slide, RX, Pt(392), RW, Pt(98), table,
+                       title="", font_size=10, border_color=theme.NAVY,
+                       fill=theme.LIGHT_GRAY)
 
- # ---- 右下：5 智能体协作矩阵
-    add_textbox(slide, RIGHT_X, Pt(440), RIGHT_W, Pt(24),
-    text="5 智能体协作矩阵", font_size=16, bold=True, color=theme.ACCENT_RED)
-    table = ("角色 输入 输出 触发事件\n"
-    "─────────────────────────────────────────────────────\n"
-    "Profile 对话/题答 6 维画像更新 profile:updated\n"
-    "Resource 学习目标 6 类资源 resource:generated\n"
-    "Path 画像+目标 结构化路径 path:scheduled\n"
-    "Tutor 问题+上下文 答案+思考 tutor:answered\n"
-    "Assessment 模块进度 评估报告 assessment:done")
-    render_ascii_block(slide, RIGHT_X, Pt(470), RIGHT_W, Pt(180), table,
-    title="", font_size=11, border_color=theme.ACCENT_RED, fill=theme.BG_PAPER)
-
- # ---- 底部 callout
-    add_card(slide, Pt(60), Pt(660), Pt(1160), Pt(40),
-    fill=theme.PRIMARY_LIGHT, border=theme.ACCENT_RED, border_width=1.0)
-    add_color_block(slide, Pt(60), Pt(660), Pt(6), Pt(40), theme.ACCENT_RED)
-    add_textbox(slide, Pt(80), Pt(668), Pt(1120), Pt(24),
-    text="关键设计：智能体之间解耦（仅通过事件总线通信）· ResourceGenerator 在 Scheduler 之上封装，代码减少 40%",
-    font_size=13, bold=True, color=theme.PRIMARY, anchor=MSO_ANCHOR.MIDDLE)
+    add_bottom_bar(slide, "核心创新：5个智能体通过事件总线完全解耦 — 新增智能体只需1行注册代码",
+                   highlight_words=["完全解耦", "1行注册代码"])

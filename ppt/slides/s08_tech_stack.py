@@ -1,15 +1,13 @@
 """
-第 7 页 · 技术选型。
-
-3 列布局：前端 / AI / 数据可视化。
-每列 4-5 个技术栈 + 选型理由。
+第 8 页 · 技术选型 · 学术商务版。
+3 列布局 + 底部金句。
 """
 
 from pptx.util import Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from components import theme
-from components.layout import add_textbox, add_page_title, apply_chrome, apply_chrome_v2
+from components.layout import add_textbox, add_rect, add_page_title, apply_chrome_v2, add_bottom_bar
 from components.shapes import add_card
 
 
@@ -18,55 +16,54 @@ def build(prs):
     slide = prs.slides.add_slide(blank)
     apply_chrome_v2(slide, chapter_idx=2, page_num=8)
 
-    add_page_title(
-        slide,
-        "前沿与稳健并重的技术选型",
-        subtitle="React 19 + SSE 流式 + Recharts 三大技术支撑",
-    )
+    add_page_title(slide, "前沿与稳健并重的技术选型",
+                   subtitle="React 19 + SSE 流式 + Recharts 三大技术支撑")
 
     cols = [
-        ("前端框架", theme.PRIMARY, [
-            ("React 19", "最新稳定版，Concurrent Features"),
-            ("TypeScript", "类型安全，IDE 智能提示"),
-            ("Vite 5", "极速冷启动 + HMR"),
-            ("Ant Design 6", "企业级 UI 组件库"),
-            ("PageCache", "手动 useState 路由 + useRef 缓存"),
+        ("前端框架与工程化", theme.NAVY, [
+            ("React 19", "最新稳定版·Concurrent·批处理"),
+            ("TypeScript", "类型安全·IDE智能提示"),
+            ("Vite 5", "极速HMR·冷启动<1s"),
+            ("Ant Design 6", "企业级UI·Statistic/Progress"),
+            ("PageCache", "手动路由·useRef状态缓存"),
         ]),
-        ("AI 层", theme.ACCENT, [
-            ("大模型 API", "兼容 Anthropic 协议"),
-            ("SSE 流式", "ReadableStream 打字机效果"),
-            ("AbortSignal", "支持中途取消请求"),
-            ("Prompt 工程", "5 类系统 prompt 注入画像"),
-            ("重试 + 超时", "axios 3 次重试 / 3 分钟超时"),
+        ("AI 交互与协议层", theme.BLUE_MID, [
+            ("大模型 API", "兼容Anthropic协议"),
+            ("SSE 流式传输", "ReadableStream打字机效果"),
+            ("AbortSignal", "中途取消请求+状态恢复"),
+            ("Prompt 工程", "5类系统prompt·画像注入"),
+            ("容错机制", "3次重试·3min超时·指数退避"),
         ]),
-        ("数据可视化", theme.PRIMARY_DEEP, [
-            ("Recharts 3", "React 原生 + 声明式 API"),
-            ("雷达图", "6 维度能力评估"),
-            ("统计卡片", "Antd Statistic 组件"),
-            ("时间线", "Antd Timeline 智能建议"),
-            ("进度条", "Antd Progress 模块进度"),
+        ("数据可视化与存储", theme.NAVY, [
+            ("Recharts 3", "React原生·RadarChart雷达"),
+            ("雷达图", "6维度能力评估可视化"),
+            ("统计卡片", "Antd Statistic数据展示"),
+            ("时间线", "Antd Timeline智能建议"),
+            ("localStorage", "零数据库·画像/进度/路径"),
         ]),
     ]
 
-    col_w = Pt(360)
-    col_top = Pt(200)
+    col_w = Pt(280)
+    col_top = Pt(130)
 
     for ci, (col_name, color, items) in enumerate(cols):
-        x = Pt(80) + ci * (col_w + Pt(20))
+        x = Pt(40) + ci * (col_w + Pt(20))
 
         # 列标题
-        add_card(slide, x, col_top, col_w, Pt(40), fill=color, border=None)
-        add_textbox(slide, x, col_top, col_w, Pt(40),
-                    text=col_name, font_size=17, bold=True, color=theme.WHITE,
+        add_card(slide, x, col_top, col_w, Pt(36), fill=color, border=None)
+        add_textbox(slide, x, col_top, col_w, Pt(36),
+                    text=col_name, font_size=15, bold=True, color=theme.WHITE,
                     align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 
-        # 列表
+        # 项目
         for i, (name, desc) in enumerate(items):
-            y = col_top + Pt(55) + i * Pt(78)
-            add_card(slide, x, y, col_w, Pt(68),
-                     fill=theme.BG_PAPER, border=color, border_width=0.75)
-            add_textbox(slide, x + Pt(14), y + Pt(8), col_w - Pt(28), Pt(26),
-                        text=name, font_size=15, bold=True,
-                        color=theme.PRIMARY)
-            add_textbox(slide, x + Pt(14), y + Pt(36), col_w - Pt(28), Pt(24),
-                        text=desc, font_size=12, color=theme.TEXT_MUTED)
+            y = col_top + Pt(48) + i * Pt(58)
+            add_card(slide, x, y, col_w, Pt(50), fill=theme.LIGHT_GRAY, border=color, border_width=0.5)
+            add_rect(slide, x, y, Pt(3), Pt(50), fill=color)
+            add_textbox(slide, x + Pt(12), y + Pt(4), col_w - Pt(24), Pt(22),
+                        text=name, font_size=13, bold=True, color=theme.NAVY)
+            add_textbox(slide, x + Pt(12), y + Pt(28), col_w - Pt(24), Pt(18),
+                        text=desc, font_size=11, color=theme.TEXT_MUTED)
+
+    add_bottom_bar(slide, "选型哲学：主流成熟保稳定 + 前沿技术提体验 + 轻量存储降依赖 = 生产级可演示系统",
+                   highlight_words=["主流成熟", "前沿技术", "轻量存储"])

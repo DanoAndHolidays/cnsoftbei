@@ -1,71 +1,71 @@
 """
-第 12 页 · 效果评估智能体（Assessment Agent）
-
-由于 Assessment 截图缺失，本页用 components/assessment_mock.py 自绘一张
-评估页 mockup 替代。
+第 14 页 · 效果评估智能体 · 学术商务版。
 """
 
-import os
 from pptx.util import Pt
-from pptx.enum.text import PP_ALIGN
-from pptx.enum.text import MSO_ANCHOR
 
 from components import theme
-from components.layout import add_textbox, add_rect, add_page_title
-from components.shapes import add_card, add_color_block
+from components.layout import add_textbox, add_rect, apply_chrome_v2, add_bottom_bar
+from components.shapes import add_card
 from components.assessment_mock import render_assessment_mock
 
 
 def build(prs):
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
-    from components.layout import apply_chrome_v2
     apply_chrome_v2(slide, chapter_idx=3, page_num=14)
 
-    color = theme.AGENT_COLORS["assessment"]
+    color = theme.NAVY
     name = theme.AGENT_NAMES_CN["assessment"]
     en = theme.AGENT_NAMES_EN["assessment"]
-    emoji = theme.AGENT_EMOJI["assessment"]
 
-    add_color_block(slide, Pt(24), Pt(50), Pt(10), Pt(28), color)
-    add_textbox(slide, left=Pt(48), top=Pt(48), width=Pt(1000), height=Pt(38),
-    text=f"{name} ({en})", font_size=30, bold=True, color=theme.PRIMARY,
-    font_name=theme.FONT_SERIF)
-    add_textbox(slide, left=Pt(48), top=Pt(88), width=Pt(900), height=Pt(20),
-    text="真实练习数据驱动 · 6 维雷达 · 智能调整建议", font_size=14, color=theme.TEXT_MUTED)
+    add_rect(slide, Pt(40), Pt(56), Pt(32), Pt(3), fill=color)
+    add_textbox(slide, left=Pt(40), top=Pt(64), width=Pt(860), height=Pt(38),
+                text=f"{name}  ({en})", font_size=26, bold=True, color=theme.DARK_TEXT)
+    add_textbox(slide, left=Pt(40), top=Pt(104), width=Pt(860), height=Pt(20),
+                text="系统的\"反馈层\" — 真实练习数据驱动 · 6 维能力雷达 · 智能调整建议 · 以评促学",
+                font_size=14, color=theme.TEXT_MUTED)
 
- # 左侧自绘 mockup
-    render_assessment_mock(slide, Pt(80), Pt(160), Pt(620), Pt(500))
+    # 左侧 mockup
+    render_assessment_mock(slide, Pt(40), Pt(130), Pt(520), Pt(350))
 
- # 右侧说明
-    right_x = Pt(740)
-    right_w = Pt(480)
+    # 右侧
+    rx = Pt(590)
+    rw = Pt(330)
 
-    add_card(slide, right_x, Pt(160), right_w, Pt(150), fill=theme.BG_PAPER, border=color, border_width=1.0)
-    add_textbox(slide, right_x + Pt(16), Pt(170), right_w - Pt(32), Pt(24),
-    text="▶ 真实进度同步（不造假）", font_size=15, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(196), right_w - Pt(32), Pt(110),
-    text="• 直接读取 practiceState（练习页写入）\n"
-    "• 监听 practiceStateUpdated 事件\n"
-    "• 无练习记录时显示引导提示\n"
-    "• 4 个统计卡 + 模块进度卡全基于真实数据",
-    font_size=14, color=theme.TEXT)
+    # 卡片 1
+    add_card(slide, rx, Pt(130), rw, Pt(130), fill=theme.LIGHT_GRAY, border=color, border_width=1.0)
+    add_textbox(slide, rx + Pt(14), Pt(136), rw - Pt(28), Pt(20),
+                text="真实进度同步 — \"不造假\"原则", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(158), rw - Pt(28), Pt(96),
+                text="· 直接读取practiceState（Practice页写入）\n"
+                     "· 监听practiceStateUpdated事件实时刷新\n"
+                     "· 4个统计卡+模块进度卡全基于真实数据\n"
+                     "· 无练习记录→显示\"去练习\"引导提示\n"
+                     "· 画像数据同步读取，雷达图反映最新状态",
+                font_size=11, color=theme.DARK_TEXT)
 
-    add_card(slide, right_x, Pt(320), right_w, Pt(150), fill=theme.WHITE, border=color, border_width=1.0)
-    add_textbox(slide, right_x + Pt(16), Pt(330), right_w - Pt(32), Pt(24),
-    text="▶ 能力雷达（6 维）", font_size=15, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(358), right_w - Pt(32), Pt(110),
-    text="• 知识基础 · 认知风格 · 易错偏好\n"
-    "• 学习节奏 · 兴趣方向 · 学习习惯\n"
-    "• Recharts RadarChart 实时更新",
-    font_size=14, color=theme.TEXT)
+    # 卡片 2
+    add_card(slide, rx, Pt(272), rw, Pt(108), fill=theme.WHITE, border=color, border_width=1.0)
+    add_textbox(slide, rx + Pt(14), Pt(278), rw - Pt(28), Pt(20),
+                text="6 维能力雷达 + 智能建议", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(300), rw - Pt(28), Pt(74),
+                text="【6维雷达Recharts RadarChart】\n"
+                     "知识基础·认知风格·易错偏好\n"
+                     "学习节奏·兴趣方向·学习习惯\n\n"
+                     "【4类智能调整建议】\n"
+                     "专项练习·节奏建议·路径推荐·整体策略",
+                font_size=11, color=theme.DARK_TEXT)
 
-    add_card(slide, right_x, Pt(480), right_w, Pt(180), fill=theme.WHITE, border=color, border_width=1.0)
-    add_textbox(slide, right_x + Pt(16), Pt(490), right_w - Pt(32), Pt(24),
-    text="▶ 智能调整建议", font_size=15, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(518), right_w - Pt(32), Pt(140),
-    text="• 薄弱维度专项练习\n"
-    "• 节奏建议（每日学习时长）\n"
-    "• 兴趣方向 相关路径推荐\n"
-    "• 整体调整：放慢/加速/转向",
-    font_size=14, color=theme.TEXT)
+    # 卡片 3
+    add_card(slide, rx, Pt(392), rw, Pt(90), fill=theme.LIGHT_GRAY, border=color, border_width=1.0)
+    add_textbox(slide, rx + Pt(14), Pt(398), rw - Pt(28), Pt(20),
+                text="以评促学 — 学习闭环最后一环", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(420), rw - Pt(28), Pt(56),
+                text="评估不是终点，而是新起点：\n"
+                     "暴露弱项→专项练习→节奏调整→路径推荐\n"
+                     "形成\"练习→评估→建议→再练习\"持续改进循环",
+                font_size=11, color=theme.DARK_TEXT)
+
+    add_bottom_bar(slide, "评估智能体让数据\"说话\"：从练习到雷达再到建议，形成完整的\"以评促学\"学习闭环",
+                   highlight_words=["以评促学", "数据\"说话\""])

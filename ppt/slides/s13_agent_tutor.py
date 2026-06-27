@@ -1,13 +1,12 @@
 """
-第 11 页 · 辅导答疑智能体（Tutor Agent）。
+第 13 页 · 辅导答疑智能体 · 学术商务版。
 """
 
-import os
 from pptx.util import Pt
 
 from components import theme
-from components.layout import add_textbox, add_rect, add_page_title, apply_chrome, apply_chrome_v2
-from components.shapes import add_card, add_color_block
+from components.layout import add_textbox, add_rect, apply_chrome_v2, add_bottom_bar
+from components.shapes import add_card
 from slides.s10_agent_profile import _screenshot
 
 
@@ -16,73 +15,54 @@ def build(prs):
     slide = prs.slides.add_slide(blank)
     apply_chrome_v2(slide, chapter_idx=3, page_num=13)
 
-    color = theme.AGENT_COLORS["tutor"]
+    color = theme.NAVY
     name = theme.AGENT_NAMES_CN["tutor"]
     en = theme.AGENT_NAMES_EN["tutor"]
-    emoji = theme.AGENT_EMOJI["tutor"]
 
-    # 标题区
-    add_color_block(slide, Pt(80), Pt(70), Pt(10), Pt(28), color)
-    add_textbox(slide, left=Pt(100), top=Pt(70), width=Pt(900), height=Pt(38),
-                text=f"{name} ({en})", font_size=24, bold=True,
-                font_name=theme.FONT_TITLE, color=theme.PRIMARY)
-    add_textbox(slide, left=Pt(100), top=Pt(110), width=Pt(600), height=Pt(20),
-                text=f"{emoji} 4 种解答模式 · 追问链 · 画像驱动 · 流式中断",
-                font_size=13, color=theme.TEXT_MUTED)
+    add_rect(slide, Pt(40), Pt(56), Pt(32), Pt(3), fill=color)
+    add_textbox(slide, left=Pt(40), top=Pt(64), width=Pt(860), height=Pt(38),
+                text=f"{name}  ({en})", font_size=26, bold=True, color=theme.DARK_TEXT)
+    add_textbox(slide, left=Pt(40), top=Pt(104), width=Pt(860), height=Pt(20),
+                text="系统的\"交互层\" — 4 种解答模式 · 追问链深度对话 · 画像注入个性化 · 5 项工程优化",
+                font_size=14, color=theme.TEXT_MUTED)
 
-    # 左侧截图
-    _screenshot(slide, theme.SCREENSHOTS["tutor"], Pt(80), Pt(160), Pt(540), Pt(440))
+    _screenshot(slide, theme.SCREENSHOTS["tutor"], Pt(40), Pt(130), Pt(520), Pt(350))
 
-    # 右侧三段式
-    right_x = Pt(680)
-    right_w = Pt(540)
+    rx = Pt(590)
+    rw = Pt(330)
 
-    # 角色定位
-    add_card(slide, right_x, Pt(160), right_w, Pt(100), fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(170), right_w - Pt(32), Pt(24),
-                text="角色定位", font_size=14, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(196), right_w - Pt(32), Pt(56),
-                text="一对一智能辅导，根据画像调整回答风格和深度；支持追问链。",
-                font_size=12, color=theme.TEXT)
+    # 卡片 1：角色 + 4 种模式
+    add_card(slide, rx, Pt(130), rw, Pt(148), fill=theme.LIGHT_GRAY)
+    add_textbox(slide, rx + Pt(14), Pt(136), rw - Pt(28), Pt(20),
+                text="角色定位 + 4 种解答模式", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(156), rw - Pt(28), Pt(18),
+                text="一对一智能辅导，根据画像调整回答风格与深度；支持多轮追问链。",
+                font_size=12, color=theme.DARK_TEXT)
 
-    # 4 种解答模式（2×2 网格）
-    add_card(slide, right_x, Pt(275), right_w, Pt(180), fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(285), right_w - Pt(32), Pt(24),
-                text="4 种解答模式", font_size=14, bold=True, color=color)
-
-    modes = [
-        ("文字", "Markdown 渲染"),
-        ("图解", "Mermaid/ASCII 流程"),
-        ("视频", "脚本 + 时间戳"),
-        ("代码", "可执行片段 + 注释"),
-    ]
-
-    col_w_inner = Pt(248)
-    row_h = Pt(56)
-    grid_top = Pt(320)
-
-    for i, (cn_t, desc) in enumerate(modes):
+    modes = [("文字模式", "Markdown+代码高亮"), ("图解模式", "Mermaid/ASCII流程图"),
+             ("视频模式", "脚本+时间戳+节奏"), ("代码模式", "可执行+逐行注释")]
+    for i, (title, desc) in enumerate(modes):
         col = i % 2
         row = i // 2
-        x = right_x + Pt(16) + col * col_w_inner
-        y = grid_top + row * row_h
-        # 左侧色块
-        add_rect(slide, x, y + Pt(8), Pt(6), Pt(28), fill=color)
-        add_textbox(slide, x + Pt(14), y, Pt(220), Pt(22),
-                    text=cn_t, font_size=14, bold=True, color=color,
-                    font_name=theme.FONT_TITLE)
-        add_textbox(slide, x + Pt(14), y + Pt(26), Pt(220), Pt(20),
-                    text=desc, font_size=11, color=theme.TEXT_MUTED)
+        x = rx + Pt(14) + col * Pt(158)
+        y = Pt(186) + row * Pt(32)
+        add_rect(slide, x, y + Pt(4), Pt(3), Pt(16), fill=color)
+        add_textbox(slide, x + Pt(10), y, Pt(88), Pt(20),
+                    text=title, font_size=12, bold=True, color=color)
+        add_textbox(slide, x + Pt(10), y + Pt(18), Pt(140), Pt(16),
+                    text=desc, font_size=10, color=theme.TEXT_MUTED)
 
-    # 工程优化
-    add_card(slide, right_x, Pt(470), right_w, Pt(180),
-             fill=theme.BG_PAPER, border=None)
-    add_textbox(slide, right_x + Pt(16), Pt(480), right_w - Pt(32), Pt(24),
-                text="工程优化（5 项）", font_size=14, bold=True, color=color)
-    add_textbox(slide, right_x + Pt(16), Pt(508), right_w - Pt(32), Pt(140),
-                text="· 画像注入 system prompt\n"
-                     "· 缓存去重（问题 + 模式双键）\n"
-                     "· 追问链 parentId / followUpIds\n"
-                     "· 点踩重新生成（含原因分析）\n"
-                     "· AbortSignal 取消未完成请求",
-                font_size=11, color=theme.TEXT)
+    # 卡片 2：5 项工程优化
+    add_card(slide, rx, Pt(290), rw, Pt(192), fill=theme.LIGHT_GRAY)
+    add_textbox(slide, rx + Pt(14), Pt(296), rw - Pt(28), Pt(20),
+                text="5 项深度工程优化", font_size=14, bold=True, color=color)
+    add_textbox(slide, rx + Pt(14), Pt(318), rw - Pt(28), Pt(158),
+                text="① 画像注入System Prompt→自动调整风格难度\n"
+                     "② 缓存去重（问题+模式双键）→避免重复调用\n"
+                     "③ 追问链parentId/followUpIds→深度多轮对话\n"
+                     "④ 点踩重新生成（含原因分析）→全新解答\n"
+                     "⑤ AbortSignal取消+红色按钮→随时中断",
+                font_size=11, color=theme.DARK_TEXT)
+
+    add_bottom_bar(slide, "辅导智能体将AI辅导从\"冷冰冰的问答\"升级为\"具备记忆与纠错能力的深度互动\"",
+                   highlight_words=["记忆", "纠错", "深度互动"])
