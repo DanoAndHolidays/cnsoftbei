@@ -29,3 +29,6 @@ dist-ssr
 # PowerPoint lock files (Windows opens .pptx with ~$ prefix temp file)
 ~$*.pptx
 ~$*.ppt
+# 测试报告
+test-results/
+coverage/

@@ -16,10 +16,21 @@ import {
 } from '@ant-design/icons';
 import { streamChatCompletion, chatCompletion } from '../services/api';
 import { defaultTutorHistory, tutorQuickQuestions } from '../data/mockData';
-import type { QAItem, StudentProfile } from '../types';
+import { questions as practiceQuestions } from '../services/practiceGrader';
+import type { QAItem, PracticeQuestion } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { usePageCache } from '../context/PageCacheContext';
-import { searchResources } from '../services/resourceStorage';
+import {
+  loadProfile,
+  buildProfileContext,
+  buildTutorSystemPrompt,
+  buildFollowUpSystemPrompt,
+  buildFollowUpUserPrompt,
+  buildRegenerateSystemPrompt,
+  buildRegenerateUserPrompt,
+  buildRelevanceCheckPrompt,
+} from '../services/promptBuilder';
+import { validateAnswerRules, findBestMatchByKeywords } from '../services/tutorQuality';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -32,31 +43,54 @@ let pendingHistory: QAItem[] | null = null;
 let pendingLastGeneratedId: string | null = null;
 let pendingQuickCache: Record<string, string> | null = null;
 
-function loadProfile(): StudentProfile | null {
-  try {
-    const saved = localStorage.getItem('studentProfile');
-    if (!saved) return null;
-    return JSON.parse(saved);
-  } catch {
-    return null;
-  }
-}
 
-function buildProfileContext(profile: StudentProfile | null): string {
-  if (!profile || !profile.dimensions?.length) return '';
-  const dimMap: Record<string, string> = {};
-  profile.dimensions.forEach(d => { dimMap[d.key] = d.value; });
+// 中文关键词到题库标签的映射
+const CN_KEYWORD_TO_TAG: Record<string, string> = {
+  '变量': 'data-types', '数据类型': 'data-types', '类型': 'data-types',
+  '函数': 'functions', '方法': 'functions', '参数': 'functions',
+  '类': 'classes', '对象': 'OOP', '面向对象': 'OOP', '继承': 'inheritance', '多态': 'polymorphism',
+  '模块': 'modules', '导入': 'modules', '包': 'modules',
+  '异常': 'exceptions', '错误': 'errorProne', '调试': 'errorProne', 'bug': 'errorProne',
+  '文件': 'files', '读写': 'files', 'IO': 'files',
+  '装饰器': 'decorators',
+  '推导式': 'comprehensions', '列表推导': 'comprehensions', '生成器': 'comprehensions',
+  '语法': 'syntax', '运算符': 'operators', '表达式': 'operators',
+  '循环': 'control-flow', '条件': 'control-flow', '流程': 'control-flow', '分支': 'control-flow',
+  '作用域': 'scope',
+};
 
-  return `\n\n【当前学生画像】
-- 姓名：${profile.name}，专业：${profile.major}，年级：${profile.grade}
-- 知识基础：${dimMap.knowledgeBase || '未知'}
-- 认知风格：${dimMap.cognitiveStyle || '未知'}
-- 易错点：${dimMap.errorProne || '未知'}
-- 学习节奏：${dimMap.learningPace || '未知'}
-- 兴趣方向：${dimMap.interestDirection || '未知'}
-- 学习习惯：${dimMap.studyHabit || '未知'}
+function getRecommendedQuestions(userQuestion: string, aiAnswer: string): PracticeQuestion[] {
+  const combinedText = `${userQuestion} ${aiAnswer}`;
+  // eslint-disable-next-line no-useless-escape
+  const terms = combinedText.split(/[\s,，。.、；;：:！!？?()（）""''「」【】\[\]\n]+/).filter(w => w.length > 2);
 
-请根据以上画像调整回答风格和深度。`;
+  // Score from keyword mapping
+  const tagScores = new Map<string, number>();
+  terms.forEach(term => {
+    Object.entries(CN_KEYWORD_TO_TAG).forEach(([keyword, tag]) => {
+      if (term.includes(keyword)) {
+        tagScores.set(tag, (tagScores.get(tag) || 0) + 1);
+      }
+    });
+    // Also check lowercase english terms against tag names
+    const lowerTerm = term.toLowerCase();
+    practiceQuestions.forEach(q => {
+      if (q.tags.some(t => t.toLowerCase() === lowerTerm)) {
+        tagScores.set(lowerTerm, (tagScores.get(lowerTerm) || 0) + 2);
+      }
+    });
+  });
+
+  const scored = practiceQuestions.map(q => {
+    const score = q.tags.reduce((sum, tag) => sum + (tagScores.get(tag) || 0), 0);
+    return { q, score };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(s => s.q);
 }
 
 const Tutor: React.FC = () => {
@@ -80,6 +114,7 @@ const Tutor: React.FC = () => {
   saveStateRef.current = saveState;
 
   // 直接将进度写入页面缓存，确保跨页面切换不丢失
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const persistProgress = (overrides: Record<string, any>) => {
     saveStateRef.current({
       question, currentAnswer, activeMode, history, feedbackMap, quickCache,
@@ -109,8 +144,10 @@ const Tutor: React.FC = () => {
     persistProgress({ isGenerating: false });
   };
 
-  // 解析上下文：自动检测用户输入是否与当前回答有关
-  const resolveContext = (parentQA?: QAItem | null) => {
+  // 关键词粗筛已从 tutorQuality.ts 导入
+
+  // 解析上下文：自动检测用户输入是否与历史问答有关
+  const resolveContext = async (parentQA?: QAItem | null): Promise<QAItem | null> => {
     // 明确指定的追问父项（从历史点击来）
     if (parentQA) return parentQA;
     // 追问状态
@@ -120,7 +157,94 @@ const Tutor: React.FC = () => {
       const lastQA = history.find(h => h.id === lastGeneratedId);
       if (lastQA) return lastQA;
     }
+    // 关键词粗筛历史，找到最相关的 QA
+    if (question.trim() && history.length > 0) {
+      const bestMatch = findBestMatchByKeywords(question, history);
+      if (bestMatch) {
+        // 精筛：调一次 AI 确认是否真的相关
+        const isRelated = await checkRelevance(question, bestMatch);
+        if (isRelated) return bestMatch;
+      }
+    }
     return null;
+  };
+
+  // 规则校验已从 tutorQuality.ts 导入
+
+  // AI 交叉评审回答质量（0-100 分）
+  const aiReviewAnswer = async (questionText: string, answer: string): Promise<number> => {
+    try {
+      const messages = [
+        {
+          role: 'system' as const,
+          content: '你是一个严格的教育内容质量评审员。请评估以下回答的质量（0-100分）。评分标准：准确性(40%)、完整性(30%)、清晰度(20%)、实用性(10%)。只输出一个整数分数。',
+        },
+        {
+          role: 'user' as const,
+          content: `问题：${questionText}\n\n回答：${answer.substring(0, 2000)}\n\n请只输出一个0-100的整数分数。`,
+        },
+      ];
+      const result = await chatCompletion(messages);
+      const match = result.match(/\d+/);
+      if (match) {
+        const score = parseInt(match[0], 10);
+        return Math.min(100, Math.max(0, score));
+      }
+      return 80; // 解析失败默认通过
+    } catch {
+      return 80; // 评审失败默认通过，不阻塞用户体验
+    }
+  };
+
+  // 带质量验证的回答生成
+  const generateWithValidation = async (
+    messages: { role: 'system' | 'user'; content: string }[],
+    questionText: string,
+    controller: AbortController,
+    onChunk: (chunk: string) => void,
+    maxRetries = 2,
+  ): Promise<string> => {
+    let fullAnswer = '';
+
+    // 第一次生成
+    fullAnswer = '';
+    await streamChatCompletion(
+      messages,
+      (chunk, isThinking) => { if (!isThinking) { fullAnswer += chunk; onChunk(fullAnswer); } },
+      () => {},
+      controller.signal,
+    );
+
+    // 规则校验
+    const ruleCheck = validateAnswerRules(fullAnswer, questionText);
+    if (!ruleCheck.pass) {
+      console.log(`[Tutor QA] 规则校验未通过: ${ruleCheck.reason}，跳过 AI 评审`);
+      return fullAnswer; // 规则不通过但不重试，直接返回（避免频繁调 API）
+    }
+
+    // AI 交叉评审
+    let lastAnswer = fullAnswer;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const reviewScore = await aiReviewAnswer(questionText, lastAnswer);
+      if (reviewScore >= 70) break;
+
+      // 评审不通过，重新生成（带评审反馈）
+      console.log(`[Tutor QA] AI 评审分数 ${reviewScore} < 70，第 ${attempt + 1} 次重试`);
+      const retryMessages = [
+        ...messages,
+        { role: 'assistant' as const, content: lastAnswer },
+        { role: 'user' as const, content: `你的回答质量评分仅 ${reviewScore} 分，请改进回答的准确性、完整性和清晰度，重新回答。` },
+      ];
+      lastAnswer = '';
+      await streamChatCompletion(
+        retryMessages,
+        (chunk, isThinking) => { if (!isThinking) { lastAnswer += chunk; onChunk(lastAnswer); } },
+        () => {},
+        controller.signal,
+      );
+    }
+
+    return lastAnswer;
   };
 
   // AI 判断新问题是否与上一个问答相关
@@ -129,7 +253,7 @@ const Tutor: React.FC = () => {
       const messages = [
         {
           role: 'system' as const,
-          content: '你是一个问题相关性判断助手。判断用户的新问题是否与之前讨论的主题相关。仅回复"相关"或"无关"，不要输出其他任何内容。',
+          content: buildRelevanceCheckPrompt(),
         },
         {
           role: 'user' as const,
@@ -149,15 +273,15 @@ const Tutor: React.FC = () => {
     if (isGenerating) return;
     setIsGenerating(true);
 
-    const contextParent = resolveContext(parentQA);
+    const contextParent = await resolveContext(parentQA);
     let isFollowUp = !!contextParent;
 
-    // 有潜在上下文时，让 AI 判断是否真正相关
-    if (contextParent) {
+    // resolveContext 内部已做精筛，若返回非 null 则已确认相关
+    // 仅对显式追问（parentQA/followUpParent）做二次确认
+    if (contextParent && (parentQA || followUpParent)) {
       const relevant = await checkRelevance(q, contextParent);
       if (!relevant) {
         isFollowUp = false;
-        // 清除追问状态，把当前输入当作新问题
         if (followUpParent) setFollowUpParent(null);
       }
     }
@@ -188,23 +312,14 @@ const Tutor: React.FC = () => {
 
         let fullResponse = '';
         try {
-          const oldAnswer = existing.answer;
           const messages = [
             {
               role: 'system' as const,
-              content: `你是一位专业的AI辅导老师。用户对之前的回答点了"踩"，现在重新提问同一问题。${profileCtx}
-1. 简要分析旧回答为什么让用户不满意
-2. 给出全新的、明显不同的高质量回答
-
-请严格按以下格式输出（用markdown）：
-## 📊 原因分析
-（2-3句话分析旧回答不足）
-## ✅ 重新解答
-（全新的回答）`,
+              content: buildRegenerateSystemPrompt(profile),
             },
             {
               role: 'user' as const,
-              content: `原始问题：${existing.question}\n\n之前的回答（用户不满意）：${oldAnswer.substring(0, 1500)}\n\n请分析原因并重新解答。`,
+              content: buildRegenerateUserPrompt(existing.question, existing.answer),
             },
           ];
 
@@ -240,8 +355,8 @@ const Tutor: React.FC = () => {
           pendingQuickCache = newQuickCache;
 
           message.success('已根据您的反馈重新生成回答');
-        } catch (error: any) {
-          if (error.name === 'AbortError') {
+        } catch (error: unknown) {
+          if (error instanceof Error && error.name === 'AbortError') {
             message.info('已取消生成');
             const cancelledAnswer = fullResponse || '（已取消）';
             setLastGeneratedId(existing.id);
@@ -296,33 +411,13 @@ const Tutor: React.FC = () => {
 
     let fullAnswer = '';
     try {
-      const modePrompts: Record<string, string> = {
-        text: '你是一位专业的AI辅导老师，请详细解答用户的问题。用清晰的结构回答，包含必要的解释和示例。',
-        image: '你是一位专业的AI辅导老师，请解答用户的问题并生成可视化图解说明。尽量用ASCII图或结构化方式来展示概念。',
-        video: '你是一位专业的AI辅导老师，请为用户提供视频讲解脚本。内容包括开场、讲解步骤、总结，每部分时间控制在1分钟内。',
-        code: '你是一位专业的编程老师，请为用户提供完整的代码示例。代码要包含注释和运行说明。',
-      };
+      const systemPrompt = isFollowUp && contextParent
+        ? buildFollowUpSystemPrompt(profile)
+        : buildTutorSystemPrompt(activeMode, profile);
 
-      let systemPrompt = modePrompts[activeMode] || modePrompts.text;
-      systemPrompt += profileCtx;
-
-      // 添加相关已生成资源的上下文
-      const relatedResources = searchResources(q.substring(0, 50));
-      if (relatedResources.length > 0) {
-        systemPrompt += '\n\n【相关已生成资源】\n' + relatedResources.slice(0, 2).map(r =>
-          `- [${r.type}] ${r.topic}: ${r.content.substring(0, 300)}...`
-        ).join('\n') + '\n\n参考以上资源内容进行回答。';
-      }
-
-      let userContent = q;
-      if (isFollowUp && contextParent) {
-        systemPrompt += `\n\n用户可能正在基于之前的回答进行追问或提出新问题。请根据上下文判断：
-- 如果新问题与之前的问答主题相关 → 将其视为追问，结合上下文给出连贯深入的回复
-- 如果新问题与之前的问答完全无关 → 将其视为全新问题，忽略之前的上下文
-
-注意：不要显式输出你的判断过程，直接给出最合适的回答。`;
-        userContent = `之前的问答：\n问：${contextParent.question}\n答：${contextParent.answer.substring(0, 2000)}\n\n用户的新输入：${q}`;
-      }
+      const userContent = isFollowUp && contextParent
+        ? buildFollowUpUserPrompt(contextParent, q)
+        : q;
 
       const messages = [
         { role: 'system' as const, content: systemPrompt },
@@ -330,11 +425,13 @@ const Tutor: React.FC = () => {
       ];
 
       fullAnswer = '';
-      await streamChatCompletion(
+      // 带质量验证的生成：规则校验 + AI 交叉评审（追问跳过验证以节省 token）
+      fullAnswer = await generateWithValidation(
         messages,
-        (chunk, isThinking) => { if (!isThinking) { fullAnswer += chunk; setCurrentAnswer(fullAnswer); persistProgress({ isGenerating: true, currentAnswer: fullAnswer }); } },
-        () => {},
-        controller.signal,
+        q,
+        controller,
+        (answer) => { setCurrentAnswer(answer); persistProgress({ isGenerating: true, currentAnswer: answer }); },
+        isFollowUp ? 0 : 2, // 追问不重试，新问题最多重试 2 次
       );
 
       // 构建新的快速缓存
@@ -382,8 +479,8 @@ const Tutor: React.FC = () => {
       if (followUpParent) setFollowUpParent(null);
 
       message.success(isFollowUp ? '已回复' : '解答完成！');
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
         message.info('已取消生成');
         const qaId = `qa-${Date.now()}`;
         const cancelledQA: QAItem = {
@@ -426,6 +523,7 @@ const Tutor: React.FC = () => {
       pendingLastGeneratedId = null;
       pendingQuickCache = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, isGenerating, activeMode, quickCache, history, feedbackMap, followUpParent, profileCtx, lastGeneratedId, currentAnswer]);
 
   const handleFeedback = (id: string, helpful: boolean, e: React.MouseEvent) => {
@@ -564,10 +662,38 @@ const Tutor: React.FC = () => {
                   {currentQA?.cancelled && <Tag color="default">已取消</Tag>}
                   {isGenerating && <Tag color="processing" icon={<LoadingOutlined />}>生成中</Tag>}
                 </Space>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <div ref={answerRef as any} style={{ maxHeight: 400, overflow: 'auto', padding: 16, borderRadius: 8, background: '#fff' }}>
                   <MarkdownRenderer content={currentAnswer} />
                   {isGenerating && <span style={{ animation: 'blink 1s infinite', marginLeft: 4 }}>|</span>}
                 </div>
+                {!isGenerating && currentQA && (() => {
+                  const recs = getRecommendedQuestions(currentQA.question, currentAnswer);
+                  if (recs.length === 0) return null;
+                  return (
+                    <div style={{ marginTop: 16 }}>
+                      <Title level={5}>相关练习题推荐</Title>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {recs.map(q => (
+                          <Card
+                            key={q.id}
+                            size="small"
+                            hoverable
+                            onClick={() => { setQuestion(q.question); }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <Space>
+                              <Tag color={q.type === 'choice' ? 'blue' : q.type === 'truefalse' ? 'green' : 'orange'}>
+                                {q.type === 'choice' ? '选择题' : q.type === 'truefalse' ? '判断题' : '简答题'}
+                              </Tag>
+                              <Text>{q.question.length > 60 ? q.question.substring(0, 60) + '...' : q.question}</Text>
+                            </Space>
+                          </Card>
+                        ))}
+                      </Space>
+                    </div>
+                  );
+                })()}
               </div>
               );
             })()}

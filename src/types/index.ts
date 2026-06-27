@@ -6,6 +6,7 @@ export interface StudentProfile {
   grade: string;
   dimensions: ProfileDimension[];
   updatedAt: string;
+  learningProfile?: LearningProfileSnapshot;
 }
 
 export interface ProfileDimension {
@@ -13,6 +14,136 @@ export interface ProfileDimension {
   label: string;
   value: string;
   level: '高' | '中' | '低';
+}
+
+export type LearningSource = '对话' | '练习' | '评估';
+export type MasteryLevel = '未接触' | '薄弱' | '一般' | '扎实';
+export type CognitiveStyleLabel = '视觉型' | '文字型' | '实践型' | '逻辑型';
+export type LearningPaceLabel = '快速接受' | '中等接受' | '慢接受';
+export type StudyHabitLabel = '边做边学' | '理论优先' | '刷题驱动';
+
+export interface LearningKnowledgeItem {
+  tag: string;
+  mastery: MasteryLevel;
+  score: number;
+  source: LearningSource;
+}
+
+export interface LearningErrorProneItem {
+  tag: string;
+  count: number;
+  source: LearningSource;
+}
+
+export interface LearningProfileSnapshot {
+  user: {
+    id: string;
+    name: string;
+    major: string;
+    grade: string;
+  };
+  knowledgeBase: LearningKnowledgeItem[];
+  cognitiveStyle: {
+    label: CognitiveStyleLabel;
+    source: LearningSource;
+  };
+  errorProne: LearningErrorProneItem[];
+  learningPace: {
+    label: LearningPaceLabel;
+    estimatedStudyHours: number;
+    source: LearningSource;
+  };
+  interestDirection: {
+    labels: string[];
+    source: LearningSource;
+  };
+  studyHabit: {
+    label: StudyHabitLabel;
+    source: LearningSource;
+  };
+  updatedAt: string;
+  source: LearningSource;
+}
+
+export type DifficultyBand = '入门' | '基础' | '进阶' | '挑战';
+
+export interface LearningPathStage {
+  stageId: string;
+  stageName: string;
+  stageGoal: string;
+  coreKnowledgePoints: string[];
+  estimatedHours: number;
+  unlockCondition: {
+    previousStageMasteryRate: number;
+  };
+}
+
+export interface LearningPathPlan {
+  pathId: string;
+  goal: string;
+  stages: LearningPathStage[];
+  totalEstimatedHours: number;
+  updatedAt: string;
+  source: LearningSource;
+}
+
+export interface PracticeSelectionItem {
+  questionId: string;
+  knowledgePoint: string;
+  difficultyBand: DifficultyBand;
+  repeated: boolean;
+  reason: string;
+}
+
+export interface PracticeSelectionReport {
+  stageId: string;
+  stageName: string;
+  targetQuestionCount: number;
+  selectedQuestionIds: string[];
+  missingKnowledgePoints: string[];
+  fallbackKnowledgePoints: string[];
+  repeatedQuestionIds: string[];
+  difficultyDistribution: Record<DifficultyBand, number>;
+  shortageReport?: string;
+  generatedAt: string;
+  source: LearningSource;
+}
+
+export interface KnowledgeMasteryReportItem {
+  tag: string;
+  masteryRate: number;
+  correctCount: number;
+  questionCount: number;
+  status: '薄弱' | '正常' | '扎实';
+}
+
+export interface LearningEvaluationReport {
+  stageId: string;
+  stageName: string;
+  masteryItems: KnowledgeMasteryReportItem[];
+  weakKnowledgePoints: string[];
+  profileUpdateInstructions: string[];
+  pathOptimizationInstructions: string[];
+  practiceOptimizationInstructions: string[];
+  generatedAt: string;
+  source: LearningSource;
+}
+
+export interface LearningCycleLog {
+  cycleId: string;
+  source: LearningSource;
+  before: {
+    profile?: LearningProfileSnapshot | null;
+    path?: LearningPathPlan | null;
+  };
+  after: {
+    profile?: LearningProfileSnapshot | null;
+    path?: LearningPathPlan | null;
+    practice?: PracticeSelectionReport | null;
+    evaluation?: LearningEvaluationReport | null;
+  };
+  notes: string[];
+  createdAt: string;
 }
 
 // 智能体角色
@@ -143,7 +274,7 @@ export interface StructuredLearningPath {
 
 // ============ 练习中心 ============
 
-export type QuestionType = 'choice' | 'truefalse' | 'short';
+export type QuestionType = 'choice' | 'truefalse' | 'short' | 'fill';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface PracticeQuestion {
@@ -151,12 +282,14 @@ export interface PracticeQuestion {
   moduleId: string;
   type: QuestionType;
   difficulty: Difficulty;
+  category: 'core' | 'extension';  // 核心基础 vs 扩展挑战
   tags: string[];
   question: string;
   options?: string[];           // 选择题选项
   correctAnswer?: string;        // 选择题正确答案索引/内容
   trueFalseAnswer?: boolean;     // 判断题答案
   sampleAnswer?: string;          // 简答题参考答案
+  fillAnswer?: string;            // 填空题正确答案
   explanation?: string;           // 解析
 }
 
@@ -209,4 +342,6 @@ export interface PracticeState {
   moduleProgress: ModuleProgress[];
   tagScores: TagScore[];
   updatedAt: string;
+  lastEvaluationReport?: LearningEvaluationReport | null;
+  cycleLogs?: LearningCycleLog[];
 }
